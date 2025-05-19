@@ -42,17 +42,18 @@ export default function Dashboard() {
         </button>
       </header>
       
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">Welcome, {user.email}!</h2>
-        <div className="mb-4">
-          <p className="font-semibold">Your user details:</p>
-          <pre className="bg-gray-100 p-2 rounded overflow-auto mt-2">
-            {JSON.stringify(user, null, 2)}
-          </pre>
-        </div>
-        <p>
-          This is your protected dashboard. Only authenticated users can see this page.
-        </p>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Link 
+          href="/dashboard/workout-plans"
+          className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow"
+        >
+          <h2 className="text-xl font-semibold mb-2">Workout Plans</h2>
+          <p className="text-gray-600">
+            Create and manage your workout plans. Set targets for different muscle groups and track your progress.
+          </p>
+        </Link>
+        
+        {/* Add more dashboard cards here as needed */}
       </div>
       
       <div className="mt-6">
