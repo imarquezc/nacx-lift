@@ -49,6 +49,15 @@ interface ExerciseExecution {
   exercise: Exercise;
 }
 
+interface ExerciseExecutionForm {
+  sets: number;
+  reps: number;
+  weight_kg: number;
+  location: string;
+  notes: string;
+  completed: boolean;
+}
+
 export default function WorkoutPlanShow({ params }: { params: { id: string } }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
@@ -60,6 +69,15 @@ export default function WorkoutPlanShow({ params }: { params: { id: string } }) 
   const [selectedExercise, setSelectedExercise] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingExecution, setEditingExecution] = useState<string | null>(null);
+  const [executionForm, setExecutionForm] = useState<ExerciseExecutionForm>({
+    sets: 0,
+    reps: 0,
+    weight_kg: 0,
+    location: '',
+    notes: '',
+    completed: false
+  });
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -162,6 +180,58 @@ export default function WorkoutPlanShow({ params }: { params: { id: string } }) 
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleExecutionUpdate = async (executionId: string) => {
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const { error: updateError } = await supabase
+        .from('exercise_executions')
+        .update({
+          sets: executionForm.sets,
+          reps: executionForm.reps,
+          weight_kg: executionForm.weight_kg,
+          location: executionForm.location || null,
+          notes: executionForm.notes || null,
+          completed: executionForm.completed
+        })
+        .eq('id', executionId);
+
+      if (updateError) throw updateError;
+
+      // Refresh exercise executions
+      const { data: executions, error: executionsError } = await supabase
+        .from('exercise_executions')
+        .select(`
+          *,
+          exercise:exercises(*)
+        `)
+        .eq('workout_plan_id', params.id)
+        .order('executed_at', { ascending: false });
+
+      if (executionsError) throw executionsError;
+      setExerciseExecutions(executions);
+      setEditingExecution(null);
+    } catch (error) {
+      console.error('Error updating exercise execution:', error);
+      setError('Failed to update exercise. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const startEditing = (execution: ExerciseExecution) => {
+    setEditingExecution(execution.id);
+    setExecutionForm({
+      sets: execution.sets || 0,
+      reps: execution.reps || 0,
+      weight_kg: execution.weight_kg || 0,
+      location: execution.location || '',
+      notes: execution.notes || '',
+      completed: execution.completed
+    });
   };
 
   const getMuscleGroupProgress = (muscleGroupId: string) => {
@@ -285,27 +355,147 @@ export default function WorkoutPlanShow({ params }: { params: { id: string } }) 
         <div className="space-y-4">
           {exerciseExecutions.map((execution) => (
             <div key={execution.id} className="border-b pb-4 last:border-b-0">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-medium">{execution.exercise.name}</h3>
-                  <p className="text-sm text-gray-600">
-                    {new Date(execution.executed_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <span className={`px-2 py-1 rounded text-sm ${
-                  execution.completed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {execution.completed ? 'Completed' : 'Pending'}
-                </span>
-              </div>
-              {execution.sets > 0 && (
-                <p className="text-sm text-gray-600 mt-2">
-                  {execution.sets} sets × {execution.reps} reps
-                  {execution.weight_kg > 0 && ` @ ${execution.weight_kg}kg`}
-                </p>
-              )}
-              {execution.notes && (
-                <p className="text-sm text-gray-600 mt-1">{execution.notes}</p>
+              {editingExecution === execution.id ? (
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleExecutionUpdate(execution.id);
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor={`sets-${execution.id}`} className="block text-sm font-medium text-gray-700">
+                        Sets
+                      </label>
+                      <input
+                        type="number"
+                        id={`sets-${execution.id}`}
+                        min="0"
+                        value={executionForm.sets}
+                        onChange={(e) => setExecutionForm(prev => ({ ...prev, sets: parseInt(e.target.value) || 0 }))}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={`reps-${execution.id}`} className="block text-sm font-medium text-gray-700">
+                        Reps
+                      </label>
+                      <input
+                        type="number"
+                        id={`reps-${execution.id}`}
+                        min="0"
+                        value={executionForm.reps}
+                        onChange={(e) => setExecutionForm(prev => ({ ...prev, reps: parseInt(e.target.value) || 0 }))}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={`weight-${execution.id}`} className="block text-sm font-medium text-gray-700">
+                        Weight (kg)
+                      </label>
+                      <input
+                        type="number"
+                        id={`weight-${execution.id}`}
+                        min="0"
+                        value={executionForm.weight_kg}
+                        onChange={(e) => setExecutionForm(prev => ({ ...prev, weight_kg: parseInt(e.target.value) || 0 }))}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={`location-${execution.id}`} className="block text-sm font-medium text-gray-700">
+                        Location
+                      </label>
+                      <input
+                        type="text"
+                        id={`location-${execution.id}`}
+                        value={executionForm.location}
+                        onChange={(e) => setExecutionForm(prev => ({ ...prev, location: e.target.value }))}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        placeholder="e.g., Home, Gym"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor={`notes-${execution.id}`} className="block text-sm font-medium text-gray-700">
+                      Notes
+                    </label>
+                    <textarea
+                      id={`notes-${execution.id}`}
+                      value={executionForm.notes}
+                      onChange={(e) => setExecutionForm(prev => ({ ...prev, notes: e.target.value }))}
+                      rows={2}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      placeholder="Add any notes about your workout..."
+                    />
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={executionForm.completed}
+                        onChange={(e) => setExecutionForm(prev => ({ ...prev, completed: e.target.checked }))}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Mark as completed</span>
+                    </label>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingExecution(null)}
+                      className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="px-4 py-2 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 disabled:bg-blue-300"
+                    >
+                      {isSubmitting ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-medium">{execution.exercise.name}</h3>
+                      <p className="text-sm text-gray-600">
+                        {new Date(execution.executed_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 rounded text-sm ${
+                        execution.completed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {execution.completed ? 'Completed' : 'Pending'}
+                      </span>
+                      <button
+                        onClick={() => startEditing(execution)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+                  {execution.sets > 0 && (
+                    <p className="text-sm text-gray-600 mt-2">
+                      {execution.sets} sets × {execution.reps} reps
+                      {execution.weight_kg > 0 && ` @ ${execution.weight_kg}kg`}
+                    </p>
+                  )}
+                  {execution.location && (
+                    <p className="text-sm text-gray-600">
+                      Location: {execution.location}
+                    </p>
+                  )}
+                  {execution.notes && (
+                    <p className="text-sm text-gray-600 mt-1">{execution.notes}</p>
+                  )}
+                </>
               )}
             </div>
           ))}
