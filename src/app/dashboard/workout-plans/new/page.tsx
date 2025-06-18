@@ -150,8 +150,11 @@ export default function NewWorkoutPlan() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-lg">Loading...</p>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin"></div>
+          <p className="text-slate-600 font-medium">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -161,89 +164,148 @@ export default function NewWorkoutPlan() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col p-8">
-      <header className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold">Create New Workout Plan</h1>
-        <Link 
-          href="/dashboard/workout-plans"
-          className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-        >
-          Back to Workout Plans
-        </Link>
-      </header>
-
-      <form onSubmit={handleSubmit} className="max-w-2xl mx-auto w-full">
-        <div className="bg-white p-6 rounded-lg shadow space-y-6">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
-              <span className="block sm:inline">{error}</span>
-            </div>
-          )}
-
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-              Workout Plan Name
-            </label>
-            <input
-              type="text"
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-              Description
-            </label>
-            <textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-medium text-gray-900">Muscle Group Targets</h2>
-              <div className="text-sm font-medium text-gray-700">
-                Total Exercises: <span className="text-blue-600">{totalExercises}</span>
-              </div>
-            </div>
-            <div className="space-y-4">
-              {muscleGroups.map((group) => (
-                <div key={group.id} className="flex items-center justify-between">
-                  <label htmlFor={`target-${group.id}`} className="block text-sm font-medium text-gray-700">
-                    {group.name}
-                  </label>
-                  <input
-                    type="number"
-                    id={`target-${group.id}`}
-                    min="0"
-                    value={muscleTargets.find(t => t.muscle_group_id === group.id)?.exercises_target || 0}
-                    onChange={(e) => handleMuscleTargetChange(group.id, parseInt(e.target.value) || 0)}
-                    className="mt-1 block w-24 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+      {/* Navigation */}
+      <nav className="sticky top-0 z-10 backdrop-blur-xl bg-white/80 border-b border-slate-200/60">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-8">
+              <Link href="/dashboard" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
+                <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">N</span>
                 </div>
-              ))}
+                <span className="font-semibold text-slate-900">Nacx Lift</span>
+              </Link>
+              <span className="text-slate-400">/</span>
+              <Link href="/dashboard/workout-plans" className="text-slate-600 hover:text-slate-900 transition-colors">
+                Workout Plans
+              </Link>
+              <span className="text-slate-400">/</span>
+              <span className="text-slate-900 font-medium">New Plan</span>
             </div>
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-blue-300"
+            <Link 
+              href="/dashboard/workout-plans"
+              className="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors duration-200"
             >
-              {isSubmitting ? 'Creating...' : 'Create Workout Plan'}
-            </button>
+              Back to Plans
+            </Link>
           </div>
         </div>
-      </form>
+      </nav>
+
+      <div className="max-w-3xl mx-auto px-6 sm:px-8 py-12">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-3xl font-bold text-slate-900 mb-4 tracking-tight">
+            Create New Workout Plan
+          </h1>
+          <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
+            Design a balanced workout routine by setting target exercise counts for each muscle group.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="w-full">
+          <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 space-y-8">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl" role="alert">
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <span className="font-medium">{error}</span>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-3">
+                Workout Plan Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className="block w-full rounded-xl border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors text-lg px-4 py-3"
+                placeholder="e.g., Summer Cut, Strength Building, Full Body"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="description" className="block text-sm font-medium text-slate-700 mb-3">
+                Description
+              </label>
+              <textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={4}
+                className="block w-full rounded-xl border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors px-4 py-3"
+                placeholder="Describe your workout goals, schedule, or any notes about this plan..."
+              />
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Muscle Group Targets</h2>
+                  <p className="text-sm text-slate-600 mt-1">Set target exercise counts for each muscle group</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-slate-500">Total Exercises</div>
+                  <div className="text-2xl font-bold text-blue-600">{totalExercises}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {muscleGroups.map((group) => (
+                  <div key={group.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                    <label htmlFor={`target-${group.id}`} className="block text-sm font-medium text-slate-700">
+                      {group.name}
+                    </label>
+                    <input
+                      type="number"
+                      id={`target-${group.id}`}
+                      min="0"
+                      value={muscleTargets.find(t => t.muscle_group_id === group.id)?.exercises_target || 0}
+                      onChange={(e) => handleMuscleTargetChange(group.id, parseInt(e.target.value) || 0)}
+                      className="block w-20 rounded-lg border-slate-300 bg-white text-slate-900 text-center shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-200">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link
+                  href="/dashboard/workout-plans"
+                  className="flex-1 px-6 py-3 text-center border border-slate-300 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors duration-200"
+                >
+                  Cancel
+                </Link>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || totalExercises === 0}
+                  className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
+                >
+                  {isSubmitting ? (
+                    <div className="flex items-center justify-center">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Creating Plan...
+                    </div>
+                  ) : 'Create Workout Plan'}
+                </button>
+              </div>
+              {totalExercises === 0 && (
+                <p className="text-xs text-slate-500 text-center mt-3">
+                  Add at least one exercise target to create your plan
+                </p>
+              )}
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   );
 } 
