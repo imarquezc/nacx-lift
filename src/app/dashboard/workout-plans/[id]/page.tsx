@@ -58,7 +58,12 @@ interface ExerciseExecutionForm {
   completed: boolean;
 }
 
-export default function WorkoutPlanShow({ params }: { params: { id: string } }) {
+interface WorkoutPlanShowProps {
+  params: Promise<{ id: string }>;
+}
+
+export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
+  const [id, setId] = useState<string>('');
   const { user, isLoading } = useAuth();
   const router = useRouter();
   
@@ -85,6 +90,14 @@ export default function WorkoutPlanShow({ params }: { params: { id: string } }) 
   });
 
   useEffect(() => {
+    const resolveParams = async () => {
+      const resolvedParams = await params;
+      setId(resolvedParams.id);
+    };
+    resolveParams();
+  }, [params]);
+
+  useEffect(() => {
     if (!isLoading && !user) {
       router.push('/login');
     }
@@ -97,7 +110,7 @@ export default function WorkoutPlanShow({ params }: { params: { id: string } }) 
         const { data: plan, error: planError } = await supabase
           .from('workout_plans')
           .select('*')
-          .eq('id', params.id)
+          .eq('id', id)
           .single();
 
         if (planError) throw planError;
@@ -110,7 +123,7 @@ export default function WorkoutPlanShow({ params }: { params: { id: string } }) 
             *,
             muscle_group:muscle_groups(*)
           `)
-          .eq('workout_plan_id', params.id);
+          .eq('workout_plan_id', id);
 
         if (targetsError) throw targetsError;
         setMuscleTargets(targets);
@@ -122,7 +135,7 @@ export default function WorkoutPlanShow({ params }: { params: { id: string } }) 
             *,
             exercise:exercises(*)
           `)
-          .eq('workout_plan_id', params.id)
+          .eq('workout_plan_id', id)
           .order('executed_at', { ascending: false });
 
         if (executionsError) throw executionsError;
@@ -142,10 +155,10 @@ export default function WorkoutPlanShow({ params }: { params: { id: string } }) 
       }
     };
 
-    if (params.id) {
+    if (id) {
       fetchWorkoutPlanData();
     }
-  }, [params.id]);
+  }, [id]);
 
   const handleAddExercise = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -215,7 +228,7 @@ export default function WorkoutPlanShow({ params }: { params: { id: string } }) 
       const { error: executionError } = await supabase
         .from('exercise_executions')
         .insert({
-          workout_plan_id: params.id,
+          workout_plan_id: id,
           exercise_id: exerciseId,
           executed_at: new Date().toISOString(),
           completed: false
@@ -230,7 +243,7 @@ export default function WorkoutPlanShow({ params }: { params: { id: string } }) 
           *,
           exercise:exercises(*)
         `)
-        .eq('workout_plan_id', params.id)
+        .eq('workout_plan_id', id)
         .order('executed_at', { ascending: false });
 
       if (executionsError) throw executionsError;
@@ -277,7 +290,7 @@ export default function WorkoutPlanShow({ params }: { params: { id: string } }) 
           *,
           exercise:exercises(*)
         `)
-        .eq('workout_plan_id', params.id)
+        .eq('workout_plan_id', id)
         .order('executed_at', { ascending: false });
 
       if (executionsError) throw executionsError;

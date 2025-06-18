@@ -47,7 +47,7 @@ export default function Home() {
             },
           }}
           providers={['google', 'github']}
-          redirectTo={`${window.location.origin}/dashboard`}
+          redirectTo={typeof window !== 'undefined' ? `${window.location.origin}/dashboard` : '/dashboard'}
         />
       </div>
     </main>

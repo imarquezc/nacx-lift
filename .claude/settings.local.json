@@ -3,7 +3,10 @@
     "allow": [
       "Bash(find:*)",
       "Bash(npm run lint)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(npm run build:*)",
+      "Bash(vercel:*)",
+      "Bash(npx vercel:*)"
     ],
     "deny": []
   }

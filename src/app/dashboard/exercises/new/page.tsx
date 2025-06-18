@@ -272,7 +272,7 @@ export default function NewExercise() {
                 </Link>
                 <button
                   type="submit"
-                  disabled={isSubmitting || (name && existingExercises.includes(name.toLowerCase().trim()))}
+                  disabled={isSubmitting || (!!name && existingExercises.includes(name.toLowerCase().trim()))}
                   className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
                 >
                   {isSubmitting ? (
