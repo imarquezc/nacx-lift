@@ -6,8 +6,8 @@ import { AuthProvider } from '@/contexts/AuthContext';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'My Supabase App',
-  description: 'A Next.js app with Supabase integration',
+  title: 'Nacx Lift - Your Personal Fitness Companion',
+  description: 'Track, improve, and achieve your fitness goals with Nacx Lift. Monitor muscle group exercise ratios and maintain balanced workouts.',
 };
 
 export default function RootLayout({
