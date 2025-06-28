@@ -475,10 +475,10 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
             <h2 className="text-xl font-semibold text-slate-900">Exercises</h2>
             <button
               onClick={() => setIsAddingExercise(!isAddingExercise)}
-              className={`px-4 py-2 font-medium rounded-lg transition-all duration-200 ${
+              className={`px-4 py-2 font-medium rounded-lg touch-manipulation ${
                 isAddingExercise 
-                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' 
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 active:bg-slate-300' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
               }`}
             >
               {isAddingExercise ? 'Cancel' : 'Add Exercise'}
@@ -566,7 +566,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
 
                 {/* Exercise Details */}
                 <div className="bg-white rounded-xl p-6 space-y-6">
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <GymNumberInput
                       value={executionForm.sets}
                       onChange={(value) => setExecutionForm(prev => ({ ...prev, sets: value }))}
@@ -605,7 +605,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full px-6 py-4 bg-blue-600 text-white rounded-xl font-medium text-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors duration-200"
+                  className="w-full px-6 py-4 bg-blue-600 text-white rounded-xl font-medium text-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed active:bg-blue-800 touch-manipulation"
                 >
                   {isSubmitting ? (
                     <div className="flex items-center justify-center">
@@ -642,7 +642,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                       className="space-y-8"
                     >
                       <div className="bg-slate-50 rounded-2xl p-6">
-                        <div className="grid grid-cols-2 gap-8 mb-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
                           <GymNumberInput
                             value={executionForm.sets}
                             onChange={(value) => setExecutionForm(prev => ({ ...prev, sets: value }))}
@@ -722,14 +722,14 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                         <button
                           type="button"
                           onClick={() => setEditingExecution(null)}
-                          className="flex-1 px-6 py-4 text-lg font-medium text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors duration-200"
+                          className="flex-1 px-6 py-4 text-lg font-medium text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200 active:bg-slate-300 touch-manipulation"
                         >
                           Cancel
                         </button>
                         <button
                           type="submit"
                           disabled={isSubmitting}
-                          className="flex-1 px-6 py-4 text-lg font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors duration-200"
+                          className="flex-1 px-6 py-4 text-lg font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed active:bg-blue-800 touch-manipulation"
                         >
                           {isSubmitting ? (
                             <div className="flex items-center justify-center">

@@ -8,7 +8,8 @@
       "Bash(vercel:*)",
       "Bash(npx vercel:*)",
       "Bash(npx tsc:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

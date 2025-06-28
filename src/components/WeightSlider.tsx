@@ -55,7 +55,7 @@ export default function WeightSlider({
           onChange={handleSliderChange}
           onMouseUp={handleSliderRelease}
           onTouchEnd={handleSliderRelease}
-          className="w-full h-3 bg-slate-200 rounded-full appearance-none cursor-pointer slider"
+          className="w-full h-3 bg-slate-200 rounded-full appearance-none cursor-pointer slider touch-manipulation"
           style={{
             background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${percentage}%, #e2e8f0 ${percentage}%, #e2e8f0 100%)`
           }}
@@ -70,35 +70,32 @@ export default function WeightSlider({
       <style jsx>{`
         .slider::-webkit-slider-thumb {
           appearance: none;
-          width: 28px;
-          height: 28px;
+          width: 32px;
+          height: 32px;
           background: #3b82f6;
           border: 4px solid white;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
           cursor: pointer;
           border-radius: 50%;
-          transition: all 0.15s ease;
+          -webkit-tap-highlight-color: transparent;
         }
 
-        .slider::-webkit-slider-thumb:hover {
-          transform: scale(1.1);
-          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+        .slider::-webkit-slider-thumb:active {
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
         }
 
         .slider::-moz-range-thumb {
-          width: 28px;
-          height: 28px;
+          width: 32px;
+          height: 32px;
           background: #3b82f6;
           border: 4px solid white;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
           cursor: pointer;
           border-radius: 50%;
-          transition: all 0.15s ease;
         }
 
-        .slider::-moz-range-thumb:hover {
-          transform: scale(1.1);
-          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+        .slider::-moz-range-thumb:active {
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
         }
       `}</style>
     </div>
