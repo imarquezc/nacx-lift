@@ -6,7 +6,9 @@
       "Bash(npx supabase:*)",
       "Bash(npm run build:*)",
       "Bash(vercel:*)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(npx tsc:*)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }
