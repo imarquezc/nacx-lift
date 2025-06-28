@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import ExerciseAutocomplete from '@/components/ExerciseAutocomplete';
+import GymNumberInput from '@/components/GymNumberInput';
+import WeightSlider from '@/components/WeightSlider';
 
 interface MuscleGroup {
   id: string;
@@ -80,6 +83,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
   const [newExerciseDescription, setNewExerciseDescription] = useState('');
   const [newExercisePrimaryMuscle, setNewExercisePrimaryMuscle] = useState('');
   const [newExerciseSecondaryMuscle, setNewExerciseSecondaryMuscle] = useState('');
+  const [isAddingExercise, setIsAddingExercise] = useState(false);
   const [executionForm, setExecutionForm] = useState<ExerciseExecutionForm>({
     sets: 0,
     reps: 0,
@@ -224,14 +228,19 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
         }
       }
 
-      // Add exercise execution
+      // Add exercise execution with initial values
       const { error: executionError } = await supabase
         .from('exercise_executions')
         .insert({
           workout_plan_id: id,
           exercise_id: exerciseId,
           executed_at: new Date().toISOString(),
-          completed: false
+          sets: executionForm.sets || null,
+          reps: executionForm.reps || null,
+          weight_kg: executionForm.weight_kg || null,
+          location: executionForm.location || null,
+          notes: executionForm.notes || null,
+          completed: executionForm.completed
         });
 
       if (executionError) throw executionError;
@@ -256,6 +265,15 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
       setNewExercisePrimaryMuscle('');
       setNewExerciseSecondaryMuscle('');
       setIsCreatingNewExercise(false);
+      setIsAddingExercise(false);
+      setExecutionForm({
+        sets: 0,
+        reps: 0,
+        weight_kg: 0,
+        location: '',
+        notes: '',
+        completed: false
+      });
     } catch (error) {
       console.error('Error adding exercise:', error);
       setError('Failed to add exercise. Please try again.');
@@ -382,17 +400,43 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
           )}
         </div>
 
+        {/* Overall Progress */}
+        <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 rounded-2xl p-6 shadow-sm border border-slate-200 mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xl font-semibold text-slate-900">Overall Workout Progress</h2>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-slate-600">
+                {exerciseExecutions.filter(e => e.completed).length} / {muscleTargets.reduce((acc, target) => acc + target.exercises_target, 0)} completed
+              </span>
+              <span className="text-sm font-bold text-blue-600">
+                {Math.round(
+                  muscleTargets.reduce((acc, target) => acc + target.exercises_target, 0) > 0
+                    ? (exerciseExecutions.filter(e => e.completed).length / muscleTargets.reduce((acc, target) => acc + target.exercises_target, 0)) * 100
+                    : 0
+                )}%
+              </span>
+            </div>
+          </div>
+          <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-700 ease-out"
+              style={{ 
+                width: `${Math.min(
+                  muscleTargets.reduce((acc, target) => acc + target.exercises_target, 0) > 0
+                    ? (exerciseExecutions.filter(e => e.completed).length / muscleTargets.reduce((acc, target) => acc + target.exercises_target, 0)) * 100
+                    : 0, 
+                  100
+                )}%` 
+              }}
+            />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           {/* Muscle Group Progress */}
           <div className="lg:col-span-2 bg-white rounded-2xl p-8 shadow-sm border border-slate-200">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-slate-900">Muscle Group Progress</h2>
-              <div className="text-sm text-slate-500">
-                {muscleTargets.reduce((acc, target) => {
-                  const progress = getMuscleGroupProgress(target.muscle_group_id);
-                  return acc + progress.completed;
-                }, 0)} / {muscleTargets.reduce((acc, target) => acc + target.exercises_target, 0)} total
-              </div>
+              <h2 className="text-xl font-semibold text-slate-900">Muscle Group Breakdown</h2>
             </div>
             <div className="space-y-6">
               {muscleTargets.map((target) => {
@@ -423,153 +467,160 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
             </div>
           </div>
 
-          {/* Add Exercise Form */}
-          <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-slate-900">Add Exercise</h2>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCreatingNewExercise(!isCreatingNewExercise);
-                  setError(null);
-                }}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
-                  isCreatingNewExercise 
-                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' 
-                    : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                }`}
-              >
-                {isCreatingNewExercise ? 'Select Existing' : 'Create New'}
-              </button>
-            </div>
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6" role="alert">
-                <div className="flex items-center">
-                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  <span>{error}</span>
-                </div>
-              </div>
-            )}
-            <form onSubmit={handleAddExercise} className="space-y-6">
-              {!isCreatingNewExercise ? (
-                <div>
-                  <label htmlFor="exercise" className="block text-sm font-medium text-slate-700 mb-2">
-                    Select Exercise
-                  </label>
-                  <select
-                    id="exercise"
-                    value={selectedExercise}
-                    onChange={(e) => setSelectedExercise(e.target.value)}
-                    className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
-                    required
-                  >
-                    <option value="">Choose an exercise from the library</option>
-                    {availableExercises.map((exercise) => (
-                      <option key={exercise.id} value={exercise.id}>
-                        {exercise.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div>
-                    <label htmlFor="newExerciseName" className="block text-sm font-medium text-slate-700 mb-2">
-                      Exercise Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      id="newExerciseName"
-                      value={newExerciseName}
-                      onChange={(e) => setNewExerciseName(e.target.value)}
-                      className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
-                      placeholder="e.g., Bench Press, Squat"
-                      required
-                    />
-                    <p className="mt-1 text-xs text-slate-500">Must be unique across all exercises</p>
-                  </div>
-                  <div>
-                    <label htmlFor="newExerciseDescription" className="block text-sm font-medium text-slate-700 mb-2">
-                      Description
-                    </label>
-                    <textarea
-                      id="newExerciseDescription"
-                      value={newExerciseDescription}
-                      onChange={(e) => setNewExerciseDescription(e.target.value)}
-                      rows={3}
-                      className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
-                      placeholder="Brief description of the exercise (optional)"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="newExercisePrimaryMuscle" className="block text-sm font-medium text-slate-700 mb-2">
-                        Primary Muscle Group <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        id="newExercisePrimaryMuscle"
-                        value={newExercisePrimaryMuscle}
-                        onChange={(e) => setNewExercisePrimaryMuscle(e.target.value)}
-                        className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
-                        required
-                      >
-                        <option value="">Select primary muscle</option>
-                        {muscleTargets.map((target) => (
-                          <option key={target.muscle_group.id} value={target.muscle_group.id}>
-                            {target.muscle_group.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label htmlFor="newExerciseSecondaryMuscle" className="block text-sm font-medium text-slate-700 mb-2">
-                        Secondary Muscle Group
-                      </label>
-                      <select
-                        id="newExerciseSecondaryMuscle"
-                        value={newExerciseSecondaryMuscle}
-                        onChange={(e) => setNewExerciseSecondaryMuscle(e.target.value)}
-                        className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
-                      >
-                        <option value="">Select secondary muscle</option>
-                        {muscleTargets.map((target) => (
-                          <option key={target.muscle_group.id} value={target.muscle_group.id}>
-                            {target.muscle_group.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
-              >
-                {isSubmitting ? (
-                  <div className="flex items-center justify-center">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    Adding...
-                  </div>
-                ) : isCreatingNewExercise ? 'Create & Add Exercise' : 'Add Exercise'}
-              </button>
-            </form>
-          </div>
         </div>
 
-        {/* Exercise History */}
+        {/* Exercise History & Add New */}
         <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-slate-900">Exercise History</h2>
-            <div className="text-sm text-slate-500">
-              {exerciseExecutions.length} {exerciseExecutions.length === 1 ? 'exercise' : 'exercises'}
-            </div>
+            <h2 className="text-xl font-semibold text-slate-900">Exercises</h2>
+            <button
+              onClick={() => setIsAddingExercise(!isAddingExercise)}
+              className={`px-4 py-2 font-medium rounded-lg transition-all duration-200 ${
+                isAddingExercise 
+                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {isAddingExercise ? 'Cancel' : 'Add Exercise'}
+            </button>
           </div>
+
+          {/* Add New Exercise Form */}
+          {isAddingExercise && (
+            <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-6 mb-8 border border-blue-100">
+              <form onSubmit={handleAddExercise} className="space-y-6">
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg" role="alert">
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                      <span>{error}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Exercise Selection */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <label className="text-lg font-semibold text-slate-700">Select Exercise</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreatingNewExercise(!isCreatingNewExercise);
+                        setError(null);
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      {isCreatingNewExercise ? 'Select from library' : 'Create new exercise'}
+                    </button>
+                  </div>
+                  
+                  {!isCreatingNewExercise ? (
+                    <ExerciseAutocomplete
+                      exercises={availableExercises}
+                      value={selectedExercise}
+                      onChange={setSelectedExercise}
+                      placeholder="Type to search exercises..."
+                    />
+                  ) : (
+                    <div className="space-y-4">
+                      <input
+                        type="text"
+                        value={newExerciseName}
+                        onChange={(e) => setNewExerciseName(e.target.value)}
+                        className="w-full px-4 py-3 text-lg rounded-xl border-2 border-slate-200 focus:border-blue-500 focus:ring-0 focus:outline-none"
+                        placeholder="Exercise name (e.g., Bench Press)"
+                        required
+                      />
+                      <div className="grid grid-cols-2 gap-4">
+                        <select
+                          value={newExercisePrimaryMuscle}
+                          onChange={(e) => setNewExercisePrimaryMuscle(e.target.value)}
+                          className="px-4 py-3 rounded-lg border-slate-300 bg-white text-slate-900"
+                          required
+                        >
+                          <option value="">Primary muscle</option>
+                          {muscleTargets.map((target) => (
+                            <option key={target.muscle_group.id} value={target.muscle_group.id}>
+                              {target.muscle_group.name}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={newExerciseSecondaryMuscle}
+                          onChange={(e) => setNewExerciseSecondaryMuscle(e.target.value)}
+                          className="px-4 py-3 rounded-lg border-slate-300 bg-white text-slate-900"
+                        >
+                          <option value="">Secondary muscle</option>
+                          {muscleTargets.map((target) => (
+                            <option key={target.muscle_group.id} value={target.muscle_group.id}>
+                              {target.muscle_group.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Exercise Details */}
+                <div className="bg-white rounded-xl p-6 space-y-6">
+                  <div className="grid grid-cols-2 gap-6">
+                    <GymNumberInput
+                      value={executionForm.sets}
+                      onChange={(value) => setExecutionForm(prev => ({ ...prev, sets: value }))}
+                      label="Sets"
+                      min={0}
+                      max={50}
+                    />
+                    <GymNumberInput
+                      value={executionForm.reps}
+                      onChange={(value) => setExecutionForm(prev => ({ ...prev, reps: value }))}
+                      label="Reps"
+                      min={0}
+                      max={100}
+                    />
+                  </div>
+                  <WeightSlider
+                    value={executionForm.weight_kg}
+                    onChange={(value) => setExecutionForm(prev => ({ ...prev, weight_kg: value }))}
+                    min={0}
+                    max={200}
+                    step={2.5}
+                  />
+                  <div className="flex items-center p-4 bg-slate-50 rounded-xl">
+                    <label className="flex items-center cursor-pointer w-full">
+                      <input
+                        type="checkbox"
+                        checked={executionForm.completed}
+                        onChange={(e) => setExecutionForm(prev => ({ ...prev, completed: e.target.checked }))}
+                        className="w-6 h-6 rounded-lg border-2 border-slate-300 bg-white text-blue-600 focus:ring-0 transition-colors mr-4"
+                      />
+                      <span className="text-lg font-medium text-slate-700">Mark as completed</span>
+                    </label>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full px-6 py-4 bg-blue-600 text-white rounded-xl font-medium text-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors duration-200"
+                >
+                  {isSubmitting ? (
+                    <div className="flex items-center justify-center">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Adding...
+                    </div>
+                  ) : 'Add Exercise'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* Exercise List */}
           <div className="space-y-6">
-            {exerciseExecutions.length === 0 ? (
+            {exerciseExecutions.length === 0 && !isAddingExercise ? (
               <div className="text-center py-12">
                 <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                   <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -588,105 +639,104 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                         e.preventDefault();
                         handleExecutionUpdate(execution.id);
                       }}
-                      className="space-y-6"
+                      className="space-y-8"
                     >
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label htmlFor={`sets-${execution.id}`} className="block text-sm font-medium text-slate-700 mb-2">
-                            Sets
-                          </label>
-                          <input
-                            type="number"
-                            id={`sets-${execution.id}`}
-                            min="0"
+                      <div className="bg-slate-50 rounded-2xl p-6">
+                        <div className="grid grid-cols-2 gap-8 mb-8">
+                          <GymNumberInput
                             value={executionForm.sets}
-                            onChange={(e) => setExecutionForm(prev => ({ ...prev, sets: parseInt(e.target.value) || 0 }))}
-                            className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
+                            onChange={(value) => setExecutionForm(prev => ({ ...prev, sets: value }))}
+                            label="Sets"
+                            min={0}
+                            max={50}
                           />
-                        </div>
-                        <div>
-                          <label htmlFor={`reps-${execution.id}`} className="block text-sm font-medium text-slate-700 mb-2">
-                            Reps
-                          </label>
-                          <input
-                            type="number"
-                            id={`reps-${execution.id}`}
-                            min="0"
+                          <GymNumberInput
                             value={executionForm.reps}
-                            onChange={(e) => setExecutionForm(prev => ({ ...prev, reps: parseInt(e.target.value) || 0 }))}
-                            className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
+                            onChange={(value) => setExecutionForm(prev => ({ ...prev, reps: value }))}
+                            label="Reps"
+                            min={0}
+                            max={100}
                           />
                         </div>
-                        <div>
-                          <label htmlFor={`weight-${execution.id}`} className="block text-sm font-medium text-slate-700 mb-2">
-                            Weight (kg)
+                        <WeightSlider
+                          value={executionForm.weight_kg}
+                          onChange={(value) => setExecutionForm(prev => ({ ...prev, weight_kg: value }))}
+                          min={0}
+                          max={200}
+                          step={2.5}
+                        />
+                      </div>
+                      <div className="space-y-4">
+                        <div className="flex items-center p-4 bg-white rounded-xl border-2 border-slate-200">
+                          <label className="flex items-center cursor-pointer w-full">
+                            <input
+                              type="checkbox"
+                              checked={executionForm.completed}
+                              onChange={(e) => setExecutionForm(prev => ({ ...prev, completed: e.target.checked }))}
+                              className="w-6 h-6 rounded-lg border-2 border-slate-300 bg-white text-blue-600 focus:ring-0 transition-colors mr-4"
+                            />
+                            <span className="text-lg font-medium text-slate-700">Mark as completed</span>
                           </label>
-                          <input
-                            type="number"
-                            id={`weight-${execution.id}`}
-                            min="0"
-                            value={executionForm.weight_kg}
-                            onChange={(e) => setExecutionForm(prev => ({ ...prev, weight_kg: parseInt(e.target.value) || 0 }))}
-                            className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
-                          />
                         </div>
+                        
+                        <details className="group">
+                          <summary className="cursor-pointer list-none">
+                            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                              <span className="text-sm font-medium text-slate-600">Additional Details (Optional)</span>
+                              <svg className="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </div>
+                          </summary>
+                          <div className="mt-4 space-y-4">
+                            <div>
+                              <label htmlFor={`location-${execution.id}`} className="block text-sm font-medium text-slate-700 mb-2">
+                                Location
+                              </label>
+                              <input
+                                type="text"
+                                id={`location-${execution.id}`}
+                                value={executionForm.location}
+                                onChange={(e) => setExecutionForm(prev => ({ ...prev, location: e.target.value }))}
+                                className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
+                                placeholder="e.g., Home, Gym"
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor={`notes-${execution.id}`} className="block text-sm font-medium text-slate-700 mb-2">
+                                Notes
+                              </label>
+                              <textarea
+                                id={`notes-${execution.id}`}
+                                value={executionForm.notes}
+                                onChange={(e) => setExecutionForm(prev => ({ ...prev, notes: e.target.value }))}
+                                rows={3}
+                                className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
+                                placeholder="Add any notes about your workout..."
+                              />
+                            </div>
+                          </div>
+                        </details>
                       </div>
-                      <div>
-                        <label htmlFor={`location-${execution.id}`} className="block text-sm font-medium text-slate-700 mb-2">
-                          Location
-                        </label>
-                        <input
-                          type="text"
-                          id={`location-${execution.id}`}
-                          value={executionForm.location}
-                          onChange={(e) => setExecutionForm(prev => ({ ...prev, location: e.target.value }))}
-                          className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
-                          placeholder="e.g., Home, Gym"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor={`notes-${execution.id}`} className="block text-sm font-medium text-slate-700 mb-2">
-                          Notes
-                        </label>
-                        <textarea
-                          id={`notes-${execution.id}`}
-                          value={executionForm.notes}
-                          onChange={(e) => setExecutionForm(prev => ({ ...prev, notes: e.target.value }))}
-                          rows={3}
-                          className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
-                          placeholder="Add any notes about your workout..."
-                        />
-                      </div>
-                      <div className="flex items-center">
-                        <label className="flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={executionForm.completed}
-                            onChange={(e) => setExecutionForm(prev => ({ ...prev, completed: e.target.checked }))}
-                            className="rounded border-slate-300 bg-white text-blue-600 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
-                          />
-                          <span className="ml-3 text-sm font-medium text-slate-700">Mark as completed</span>
-                        </label>
-                      </div>
-                      <div className="flex justify-end gap-3 pt-6 border-t border-slate-200">
+                      <div className="flex gap-4 pt-6">
                         <button
                           type="button"
                           onClick={() => setEditingExecution(null)}
-                          className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors duration-200"
+                          className="flex-1 px-6 py-4 text-lg font-medium text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors duration-200"
                         >
                           Cancel
                         </button>
                         <button
                           type="submit"
                           disabled={isSubmitting}
-                          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors duration-200"
+                          className="flex-1 px-6 py-4 text-lg font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors duration-200"
                         >
                           {isSubmitting ? (
-                            <div className="flex items-center">
-                              <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                            <div className="flex items-center justify-center">
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
                               Saving...
                             </div>
-                          ) : 'Save Changes'}
+                          ) : 'Save Workout'}
                         </button>
                       </div>
                     </form>
@@ -714,7 +764,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                           </span>
                           <button
                             onClick={() => startEditing(execution)}
-                            className="text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors"
+                            className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200 transition-colors"
                           >
                             Edit
                           </button>
