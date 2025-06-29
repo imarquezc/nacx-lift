@@ -151,9 +151,9 @@ export default function LoginPage() {
                 <span className="ml-2 text-sm text-slate-600">Remember me</span>
               </label>
               {!isSignUp && (
-                <a href="#" className="text-sm text-blue-600 hover:text-blue-700">
+                <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700">
                   Forgot password?
-                </a>
+                </Link>
               )}
             </div>
 
