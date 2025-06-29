@@ -16,7 +16,6 @@ export default function WeightSlider({
   onChange, 
   min = 0, 
   max = 200,
-  step = 2.5,
   unit = 'kg'
 }: WeightSliderProps) {
   const [displayValue, setDisplayValue] = useState(value);
@@ -25,8 +24,16 @@ export default function WeightSlider({
     setDisplayValue(value);
   }, [value]);
 
+  const getStepForValue = (val: number) => {
+    if (val < 10) return 0.5;
+    if (val < 20) return 1;
+    return 2.5;
+  };
+
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = parseFloat(e.target.value);
+    const rawValue = parseFloat(e.target.value);
+    const currentStep = getStepForValue(rawValue);
+    const newValue = Math.round(rawValue / currentStep) * currentStep;
     setDisplayValue(newValue);
   };
 
@@ -50,7 +57,7 @@ export default function WeightSlider({
           type="range"
           min={min}
           max={max}
-          step={step}
+          step={0.1}
           value={displayValue}
           onChange={handleSliderChange}
           onMouseUp={handleSliderRelease}

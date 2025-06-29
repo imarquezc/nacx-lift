@@ -4,8 +4,8 @@
 
 Before completing any coding task, always run the following commands to ensure code quality:
 
-1. **Linter**: `npm run lint`
-2. **TypeScript Check**: `npx tsc --noEmit` or `npm run build`
+1. **Linter**: `yarn run lint`
+2. **TypeScript Check**: `npx tsc --noEmit` or `yarn run build`
 
 Both commands must pass without errors before considering the task complete.
 

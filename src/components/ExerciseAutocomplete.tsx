@@ -53,29 +53,43 @@ export default function ExerciseAutocomplete({
 
   const handleSelect = (exerciseId: string) => {
     onChange(exerciseId);
-    const exercise = exercises.find(e => e.id === exerciseId);
-    setQuery(exercise?.name || '');
+    setQuery('');
     setIsOpen(false);
   };
 
   return (
     <div ref={wrapperRef} className="relative">
-      <input
-        type="text"
-        value={selectedExercise ? selectedExercise.name : query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          if (value) onChange(''); // Clear selection when typing
-        }}
-        onFocus={() => {
-          if (selectedExercise) {
-            setQuery('');
-            onChange('');
-          }
-        }}
-        placeholder={placeholder}
-        className="w-full px-6 py-4 text-lg rounded-xl border-2 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-0 focus:outline-none transition-colors"
-      />
+      <div className="relative">
+        <input
+          type="text"
+          value={selectedExercise ? selectedExercise.name : query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (value) onChange(''); // Clear selection when typing
+          }}
+          onFocus={() => {
+            if (query && filteredExercises.length > 0) {
+              setIsOpen(true);
+            }
+          }}
+          placeholder={placeholder}
+          className="w-full px-6 py-4 pr-12 text-lg rounded-xl border-2 border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-0 focus:outline-none transition-colors"
+        />
+        {selectedExercise && (
+          <button
+            type="button"
+            onClick={() => {
+              onChange('');
+              setQuery('');
+            }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-600"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
       
       {isOpen && filteredExercises.length > 0 && (
         <div className="absolute z-10 w-full mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-xl max-h-60 overflow-y-auto">

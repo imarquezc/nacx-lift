@@ -85,9 +85,9 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
   const [newExerciseSecondaryMuscle, setNewExerciseSecondaryMuscle] = useState('');
   const [isAddingExercise, setIsAddingExercise] = useState(false);
   const [executionForm, setExecutionForm] = useState<ExerciseExecutionForm>({
-    sets: 0,
-    reps: 0,
-    weight_kg: 0,
+    sets: 4,
+    reps: 8,
+    weight_kg: 30,
     location: '',
     notes: '',
     completed: false
@@ -267,9 +267,9 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
       setIsCreatingNewExercise(false);
       setIsAddingExercise(false);
       setExecutionForm({
-        sets: 0,
-        reps: 0,
-        weight_kg: 0,
+        sets: 4,
+        reps: 8,
+        weight_kg: 30,
         location: '',
         notes: '',
         completed: false
@@ -401,7 +401,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
         </div>
 
         {/* Overall Progress */}
-        <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 rounded-2xl p-6 shadow-sm border border-slate-200 mb-8">
+        <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 rounded-2xl p-4 md:p-6 shadow-sm border border-slate-200 mb-6 md:mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xl font-semibold text-slate-900">Overall Workout Progress</h2>
             <div className="flex items-center gap-3">
@@ -434,7 +434,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           {/* Muscle Group Progress */}
-          <div className="lg:col-span-2 bg-white rounded-2xl p-8 shadow-sm border border-slate-200">
+          <div className="lg:col-span-2 bg-white rounded-2xl p-4 md:p-8 shadow-sm border border-slate-200">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-slate-900">Muscle Group Breakdown</h2>
             </div>
@@ -470,7 +470,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
         </div>
 
         {/* Exercise History & Add New */}
-        <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200">
+        <div className="bg-white rounded-2xl p-4 md:p-8 shadow-sm border border-slate-200">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-slate-900">Exercises</h2>
             <button
@@ -487,7 +487,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
 
           {/* Add New Exercise Form */}
           {isAddingExercise && (
-            <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-6 mb-8 border border-blue-100">
+            <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-4 md:p-6 mb-6 md:mb-8 border border-blue-100">
               <form onSubmit={handleAddExercise} className="space-y-6">
                 {error && (
                   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg" role="alert">
@@ -565,7 +565,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                 </div>
 
                 {/* Exercise Details */}
-                <div className="bg-white rounded-xl p-6 space-y-6">
+                <div className="bg-white rounded-xl p-4 md:p-6 space-y-4 md:space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <GymNumberInput
                       value={executionForm.sets}
@@ -641,7 +641,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                       }}
                       className="space-y-8"
                     >
-                      <div className="bg-slate-50 rounded-2xl p-6">
+                      <div className="bg-slate-50 rounded-2xl p-4 md:p-6">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
                           <GymNumberInput
                             value={executionForm.sets}
