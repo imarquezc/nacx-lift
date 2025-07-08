@@ -11,7 +11,8 @@
       "Bash(ls:*)",
       "Bash(grep:*)",
       "Bash(npm install:*)",
-      "Bash(npm run reset-exercises:*)"
+      "Bash(npm run reset-exercises:*)",
+      "Bash(yarn run lint)"
     ],
     "deny": []
   }

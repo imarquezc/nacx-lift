@@ -58,7 +58,6 @@ interface ExerciseExecutionForm {
   weight_kg: number;
   location: string;
   notes: string;
-  completed: boolean;
 }
 
 interface WorkoutPlanShowProps {
@@ -89,8 +88,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
     reps: 8,
     weight_kg: 30,
     location: '',
-    notes: '',
-    completed: false
+    notes: ''
   });
 
   useEffect(() => {
@@ -240,7 +238,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
           weight_kg: executionForm.weight_kg || null,
           location: executionForm.location || null,
           notes: executionForm.notes || null,
-          completed: executionForm.completed
+          completed: false
         });
 
       if (executionError) throw executionError;
@@ -271,14 +269,36 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
         reps: 8,
         weight_kg: 30,
         location: '',
-        notes: '',
-        completed: false
+        notes: ''
       });
     } catch (error) {
       console.error('Error adding exercise:', error);
       setError('Failed to add exercise. Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleCompleted = async (executionId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('exercise_executions')
+        .update({ completed: !currentStatus })
+        .eq('id', executionId);
+
+      if (error) throw error;
+
+      // Update local state
+      setExerciseExecutions(prev => 
+        prev.map(ex => 
+          ex.id === executionId 
+            ? { ...ex, completed: !currentStatus }
+            : ex
+        )
+      );
+    } catch (error) {
+      console.error('Error toggling completion status:', error);
+      setError('Failed to update completion status');
     }
   };
 
@@ -294,8 +314,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
           reps: executionForm.reps,
           weight_kg: executionForm.weight_kg,
           location: executionForm.location || null,
-          notes: executionForm.notes || null,
-          completed: executionForm.completed
+          notes: executionForm.notes || null
         })
         .eq('id', executionId);
 
@@ -329,8 +348,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
       reps: execution.reps || 0,
       weight_kg: execution.weight_kg || 0,
       location: execution.location || '',
-      notes: execution.notes || '',
-      completed: execution.completed
+      notes: execution.notes || ''
     });
   };
 
@@ -520,7 +538,29 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                     <ExerciseAutocomplete
                       exercises={availableExercises}
                       value={selectedExercise}
-                      onChange={setSelectedExercise}
+                      onChange={async (exerciseId) => {
+                        setSelectedExercise(exerciseId);
+                        if (exerciseId) {
+                          // Fetch last execution for this exercise
+                          const { data: lastExecution } = await supabase
+                            .from('exercise_executions')
+                            .select('sets, reps, weight_kg')
+                            .eq('exercise_id', exerciseId)
+                            .eq('user_id', user.id)
+                            .order('executed_at', { ascending: false })
+                            .limit(1)
+                            .single();
+                          
+                          if (lastExecution) {
+                            setExecutionForm(prev => ({
+                              ...prev,
+                              sets: lastExecution.sets || 4,
+                              reps: lastExecution.reps || 8,
+                              weight_kg: lastExecution.weight_kg || 30
+                            }));
+                          }
+                        }
+                      }}
                       placeholder="Type to search exercises..."
                     />
                   ) : (
@@ -589,17 +629,6 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                     max={200}
                     step={2.5}
                   />
-                  <div className="flex items-center p-4 bg-slate-50 rounded-xl">
-                    <label className="flex items-center cursor-pointer w-full">
-                      <input
-                        type="checkbox"
-                        checked={executionForm.completed}
-                        onChange={(e) => setExecutionForm(prev => ({ ...prev, completed: e.target.checked }))}
-                        className="w-6 h-6 rounded-lg border-2 border-slate-300 bg-white text-blue-600 focus:ring-0 transition-colors mr-4"
-                      />
-                      <span className="text-lg font-medium text-slate-700">Mark as completed</span>
-                    </label>
-                  </div>
                 </div>
 
                 <button
@@ -667,18 +696,6 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                         />
                       </div>
                       <div className="space-y-4">
-                        <div className="flex items-center p-4 bg-white rounded-xl border-2 border-slate-200">
-                          <label className="flex items-center cursor-pointer w-full">
-                            <input
-                              type="checkbox"
-                              checked={executionForm.completed}
-                              onChange={(e) => setExecutionForm(prev => ({ ...prev, completed: e.target.checked }))}
-                              className="w-6 h-6 rounded-lg border-2 border-slate-300 bg-white text-blue-600 focus:ring-0 transition-colors mr-4"
-                            />
-                            <span className="text-lg font-medium text-slate-700">Mark as completed</span>
-                          </label>
-                        </div>
-                        
                         <details className="group">
                           <summary className="cursor-pointer list-none">
                             <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
@@ -755,6 +772,12 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={execution.completed}
+                            onChange={() => handleToggleCompleted(execution.id, execution.completed)}
+                            className="w-5 h-5 rounded border-2 border-slate-300 text-blue-600 focus:ring-0 cursor-pointer"
+                          />
                           <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                             execution.completed 
                               ? 'bg-emerald-100 text-emerald-700' 
