@@ -90,6 +90,9 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
     location: '',
     notes: ''
   });
+  const [swipedExecution, setSwipedExecution] = useState<string | null>(null);
+  const [swipeX, setSwipeX] = useState(0);
+  const [touchStartX, setTouchStartX] = useState(0);
 
   useEffect(() => {
     const resolveParams = async () => {
@@ -302,6 +305,28 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
     }
   };
 
+  const handleDeleteExecution = async (executionId: string) => {
+    if (!confirm('Are you sure you want to delete this exercise?')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('exercise_executions')
+        .delete()
+        .eq('id', executionId);
+
+      if (error) throw error;
+
+      // Update local state
+      setExerciseExecutions(prev => prev.filter(ex => ex.id !== executionId));
+      setEditingExecution(null);
+    } catch (error) {
+      console.error('Error deleting exercise execution:', error);
+      setError('Failed to delete exercise. Please try again.');
+    }
+  };
+
   const handleExecutionUpdate = async (executionId: string) => {
     setIsSubmitting(true);
     setError(null);
@@ -364,6 +389,38 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
     };
   };
 
+  // Swipe handlers
+  const handleTouchStart = (executionId: string, e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+    setSwipedExecution(executionId);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!swipedExecution) return;
+    
+    const currentX = e.touches[0].clientX;
+    const diff = touchStartX - currentX;
+    
+    // Only allow left swipe (negative values)
+    if (diff > 0) {
+      setSwipeX(Math.min(diff, 200)); // Limit swipe distance
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!swipedExecution) return;
+    
+    // If swiped more than 100px, trigger delete
+    if (swipeX > 100) {
+      handleDeleteExecution(swipedExecution);
+    }
+    
+    // Reset swipe state
+    setSwipeX(0);
+    setSwipedExecution(null);
+    setTouchStartX(0);
+  };
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
@@ -401,7 +458,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
             </div>
             <Link 
               href="/dashboard/workout-plans"
-              className="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors duration-200"
+              className="hidden sm:block px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors duration-200"
             >
               Back to Plans
             </Link>
@@ -661,7 +718,32 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
               </div>
             ) : (
               exerciseExecutions.map((execution) => (
-                <div key={execution.id} className="border border-slate-200 rounded-xl p-6 hover:border-slate-300 transition-colors">
+                <div 
+                  key={execution.id} 
+                  className="relative overflow-hidden"
+                >
+                  {/* Delete indicator */}
+                  {swipedExecution === execution.id && swipeX > 0 && (
+                    <div 
+                      className="absolute inset-y-0 right-0 bg-red-500 flex items-center justify-center transition-all"
+                      style={{ width: `${Math.min(swipeX, 200)}px` }}
+                    >
+                      <div className="text-white font-medium px-4">
+                        {swipeX > 100 ? 'Release to delete' : 'Swipe to delete'}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div 
+                    className="relative border border-slate-200 rounded-xl p-6 hover:border-slate-300 transition-all bg-white"
+                    style={{
+                      transform: swipedExecution === execution.id ? `translateX(-${swipeX}px)` : 'translateX(0)',
+                      transition: swipedExecution === execution.id ? 'none' : 'transform 0.3s ease-out'
+                    }}
+                    onTouchStart={(e) => handleTouchStart(execution.id, e)}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                  >
                   {editingExecution === execution.id ? (
                     <form 
                       onSubmit={(e) => {
@@ -736,6 +818,13 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                         </details>
                       </div>
                       <div className="flex gap-4 pt-6">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteExecution(execution.id)}
+                          className="px-6 py-4 text-lg font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 active:bg-red-800 touch-manipulation"
+                        >
+                          Delete
+                        </button>
                         <button
                           type="button"
                           onClick={() => setEditingExecution(null)}
@@ -827,6 +916,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                       </div>
                     </>
                   )}
+                  </div>
                 </div>
               ))
             )}

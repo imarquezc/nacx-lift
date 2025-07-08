@@ -185,7 +185,7 @@ export default function NewWorkoutPlan() {
             </div>
             <Link 
               href="/dashboard/workout-plans"
-              className="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors duration-200"
+              className="hidden sm:block px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors duration-200"
             >
               Back to Plans
             </Link>
