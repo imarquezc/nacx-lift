@@ -393,6 +393,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
   const handleTouchStart = (executionId: string, e: React.TouchEvent) => {
     setTouchStartX(e.touches[0].clientX);
     setSwipedExecution(executionId);
+    setSwipeX(0);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -403,22 +404,26 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
     
     // Only allow left swipe (negative values)
     if (diff > 0) {
-      setSwipeX(Math.min(diff, 200)); // Limit swipe distance
+      setSwipeX(Math.min(diff, 150)); // Limit swipe distance
+    } else {
+      setSwipeX(0); // Reset if swiping right
     }
   };
 
   const handleTouchEnd = () => {
     if (!swipedExecution) return;
     
-    // If swiped more than 100px, trigger delete
-    if (swipeX > 100) {
+    // If swiped more than 80px, trigger delete
+    if (swipeX > 80) {
       handleDeleteExecution(swipedExecution);
     }
     
-    // Reset swipe state
+    // Reset swipe state with animation
     setSwipeX(0);
-    setSwipedExecution(null);
-    setTouchStartX(0);
+    setTimeout(() => {
+      setSwipedExecution(null);
+      setTouchStartX(0);
+    }, 300);
   };
 
   if (isLoading) {
@@ -549,7 +554,20 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-slate-900">Exercises</h2>
             <button
-              onClick={() => setIsAddingExercise(!isAddingExercise)}
+              onClick={() => {
+                setIsAddingExercise(!isAddingExercise);
+                // Reset form when opening add exercise
+                if (!isAddingExercise) {
+                  setSelectedExercise('');
+                  setExecutionForm({
+                    sets: 4,
+                    reps: 8,
+                    weight_kg: 30,
+                    location: '',
+                    notes: ''
+                  });
+                }
+              }}
               className={`px-4 py-2 font-medium rounded-lg touch-manipulation ${
                 isAddingExercise 
                   ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 active:bg-slate-300' 
@@ -597,24 +615,31 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                       value={selectedExercise}
                       onChange={async (exerciseId) => {
                         setSelectedExercise(exerciseId);
-                        if (exerciseId) {
-                          // Fetch last execution for this exercise
-                          const { data: lastExecution } = await supabase
-                            .from('exercise_executions')
-                            .select('sets, reps, weight_kg')
-                            .eq('exercise_id', exerciseId)
-                            .eq('user_id', user.id)
-                            .order('executed_at', { ascending: false })
-                            .limit(1)
-                            .single();
-                          
-                          if (lastExecution) {
-                            setExecutionForm(prev => ({
-                              ...prev,
-                              sets: lastExecution.sets || 4,
-                              reps: lastExecution.reps || 8,
-                              weight_kg: lastExecution.weight_kg || 30
-                            }));
+                        if (exerciseId && user?.id) {
+                          try {
+                            // Fetch last execution for this exercise
+                            const { data: lastExecution, error } = await supabase
+                              .from('exercise_executions')
+                              .select('sets, reps, weight_kg')
+                              .eq('exercise_id', exerciseId)
+                              .eq('user_id', user.id)
+                              .order('executed_at', { ascending: false })
+                              .limit(1)
+                              .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no data
+                            
+                            if (!error && lastExecution) {
+                              console.log('Pre-filling from last execution:', lastExecution);
+                              setExecutionForm(prev => ({
+                                ...prev,
+                                sets: lastExecution.sets || prev.sets,
+                                reps: lastExecution.reps || prev.reps,
+                                weight_kg: lastExecution.weight_kg || prev.weight_kg
+                              }));
+                            } else {
+                              console.log('No previous execution found for exercise:', exerciseId);
+                            }
+                          } catch (err) {
+                            console.error('Error fetching last execution:', err);
                           }
                         }
                       }}
@@ -723,22 +748,24 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                   className="relative overflow-hidden"
                 >
                   {/* Delete indicator */}
-                  {swipedExecution === execution.id && swipeX > 0 && (
-                    <div 
-                      className="absolute inset-y-0 right-0 bg-red-500 flex items-center justify-center transition-all"
-                      style={{ width: `${Math.min(swipeX, 200)}px` }}
-                    >
-                      <div className="text-white font-medium px-4">
-                        {swipeX > 100 ? 'Release to delete' : 'Swipe to delete'}
-                      </div>
+                  <div 
+                    className="absolute inset-y-0 right-0 bg-red-500 flex items-center justify-center rounded-xl"
+                    style={{ 
+                      width: swipedExecution === execution.id ? `${Math.min(swipeX, 150)}px` : '0px',
+                      opacity: swipedExecution === execution.id && swipeX > 0 ? 1 : 0,
+                      transition: 'width 0.1s ease-out, opacity 0.1s ease-out'
+                    }}
+                  >
+                    <div className="text-white font-medium px-4 whitespace-nowrap">
+                      {swipeX > 80 ? '🗑️ Delete' : 'Swipe'}
                     </div>
-                  )}
+                  </div>
                   
                   <div 
-                    className="relative border border-slate-200 rounded-xl p-6 hover:border-slate-300 transition-all bg-white"
+                    className="relative border border-slate-200 rounded-xl p-6 hover:border-slate-300 bg-white"
                     style={{
-                      transform: swipedExecution === execution.id ? `translateX(-${swipeX}px)` : 'translateX(0)',
-                      transition: swipedExecution === execution.id ? 'none' : 'transform 0.3s ease-out'
+                      transform: `translateX(-${swipedExecution === execution.id ? swipeX : 0}px)`,
+                      transition: swipedExecution === execution.id && touchStartX !== 0 ? 'none' : 'transform 0.2s ease-out'
                     }}
                     onTouchStart={(e) => handleTouchStart(execution.id, e)}
                     onTouchMove={handleTouchMove}
