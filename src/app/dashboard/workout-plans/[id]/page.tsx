@@ -478,7 +478,15 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
       <div className="max-w-7xl mx-auto px-6 sm:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">{workoutPlan.name}</h1>
+          <div className="flex items-start justify-between mb-2">
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{workoutPlan.name}</h1>
+            <Link
+              href={`/dashboard/workout-plans/${id}/edit`}
+              className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              Edit Plan
+            </Link>
+          </div>
           {workoutPlan.description && (
             <p className="text-lg text-slate-600">{workoutPlan.description}</p>
           )}
