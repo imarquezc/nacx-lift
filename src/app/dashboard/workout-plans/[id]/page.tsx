@@ -382,10 +382,14 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
     const completed = exerciseExecutions.filter(e => 
       e.exercise.primary_muscle_group_id === muscleGroupId && e.completed
     ).length;
+    const planned = exerciseExecutions.filter(e => 
+      e.exercise.primary_muscle_group_id === muscleGroupId && !e.completed
+    ).length;
     
     return {
       target: target?.exercises_target || 0,
-      completed
+      completed,
+      planned
     };
   };
 
@@ -497,18 +501,35 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
               </span>
             </div>
           </div>
-          <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-700 ease-out"
-              style={{ 
-                width: `${Math.min(
-                  muscleTargets.reduce((acc, target) => acc + target.exercises_target, 0) > 0
-                    ? (exerciseExecutions.filter(e => e.completed).length / muscleTargets.reduce((acc, target) => acc + target.exercises_target, 0)) * 100
-                    : 0, 
-                  100
-                )}%` 
-              }}
-            />
+          <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden relative">
+            {(() => {
+              const totalTarget = muscleTargets.reduce((acc, target) => acc + target.exercises_target, 0);
+              const completedCount = exerciseExecutions.filter(e => e.completed).length;
+              const plannedCount = exerciseExecutions.filter(e => !e.completed).length;
+              const completedPercentage = totalTarget > 0 ? (completedCount / totalTarget) * 100 : 0;
+              const plannedPercentage = totalTarget > 0 ? (plannedCount / totalTarget) * 100 : 0;
+              const totalPercentage = Math.min(completedPercentage + plannedPercentage, 100);
+              
+              return (
+                <>
+                  {/* Planned exercises (gray) */}
+                  <div 
+                    className="absolute h-full bg-slate-400 transition-all duration-700 ease-out"
+                    style={{ 
+                      width: `${totalPercentage}%`,
+                      opacity: 0.5
+                    }}
+                  />
+                  {/* Completed exercises (blue) */}
+                  <div 
+                    className="absolute h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-700 ease-out"
+                    style={{ 
+                      width: `${completedPercentage}%`
+                    }}
+                  />
+                </>
+              );
+            })()}
           </div>
         </div>
 
@@ -521,24 +542,36 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
             <div className="space-y-6">
               {muscleTargets.map((target) => {
                 const progress = getMuscleGroupProgress(target.muscle_group_id);
-                const percentage = (progress.completed / progress.target) * 100;
+                const completedPercentage = (progress.completed / progress.target) * 100;
+                const plannedPercentage = (progress.planned / progress.target) * 100;
+                const totalPercentage = Math.min(completedPercentage + plannedPercentage, 100);
+                
                 return (
                   <div key={target.id} className="">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium text-slate-900">{target.muscle_group.name}</span>
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-medium text-slate-600">
-                          {progress.completed} / {progress.target}
+                          {progress.completed}{progress.planned > 0 && ` (+${progress.planned})`} / {progress.target}
                         </span>
                         <span className="text-xs text-slate-500">
-                          {Math.round(percentage)}%
+                          {Math.round(completedPercentage)}%
                         </span>
                       </div>
                     </div>
-                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden relative">
+                      {/* Planned exercises (gray) */}
                       <div 
-                        className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500 ease-out"
-                        style={{ width: `${Math.min(percentage, 100)}%` }}
+                        className="absolute h-full bg-slate-400 transition-all duration-500 ease-out"
+                        style={{ 
+                          width: `${totalPercentage}%`,
+                          opacity: 0.4
+                        }}
+                      />
+                      {/* Completed exercises (blue) */}
+                      <div 
+                        className="absolute h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500 ease-out"
+                        style={{ width: `${completedPercentage}%` }}
                       />
                     </div>
                   </div>
@@ -558,6 +591,16 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                 setIsAddingExercise(!isAddingExercise);
                 // Reset form when opening add exercise
                 if (!isAddingExercise) {
+                  setSelectedExercise('');
+                  setExecutionForm({
+                    sets: 4,
+                    reps: 8,
+                    weight_kg: 30,
+                    location: '',
+                    notes: ''
+                  });
+                } else {
+                  // When closing, reset the form
                   setSelectedExercise('');
                   setExecutionForm({
                     sets: 4,
@@ -614,10 +657,12 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                       exercises={availableExercises}
                       value={selectedExercise}
                       onChange={async (exerciseId) => {
+                        console.log('Exercise selected:', exerciseId);
                         setSelectedExercise(exerciseId);
+                        
                         if (exerciseId && user?.id) {
                           try {
-                            // Fetch last execution for this exercise
+                            // Fetch last execution for this exercise by this user
                             const { data: lastExecution, error } = await supabase
                               .from('exercise_executions')
                               .select('sets, reps, weight_kg')
@@ -625,18 +670,21 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                               .eq('user_id', user.id)
                               .order('executed_at', { ascending: false })
                               .limit(1)
-                              .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no data
+                              .maybeSingle();
                             
-                            if (!error && lastExecution) {
+                            console.log('Query result:', { lastExecution, error, userId: user.id });
+                            
+                            if (!error && lastExecution && lastExecution.sets !== null && lastExecution.reps !== null) {
                               console.log('Pre-filling from last execution:', lastExecution);
-                              setExecutionForm(prev => ({
-                                ...prev,
-                                sets: lastExecution.sets || prev.sets,
-                                reps: lastExecution.reps || prev.reps,
-                                weight_kg: lastExecution.weight_kg || prev.weight_kg
-                              }));
+                              setExecutionForm({
+                                sets: lastExecution.sets,
+                                reps: lastExecution.reps,
+                                weight_kg: lastExecution.weight_kg || 30,
+                                location: '',
+                                notes: ''
+                              });
                             } else {
-                              console.log('No previous execution found for exercise:', exerciseId);
+                              console.log('No previous execution found or incomplete data for exercise:', exerciseId);
                             }
                           } catch (err) {
                             console.error('Error fetching last execution:', err);
@@ -767,9 +815,9 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                       transform: `translateX(-${swipedExecution === execution.id ? swipeX : 0}px)`,
                       transition: swipedExecution === execution.id && touchStartX !== 0 ? 'none' : 'transform 0.2s ease-out'
                     }}
-                    onTouchStart={(e) => handleTouchStart(execution.id, e)}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
+                    onTouchStart={(e) => editingExecution !== execution.id ? handleTouchStart(execution.id, e) : undefined}
+                    onTouchMove={editingExecution !== execution.id ? handleTouchMove : undefined}
+                    onTouchEnd={editingExecution !== execution.id ? handleTouchEnd : undefined}
                   >
                   {editingExecution === execution.id ? (
                     <form 
