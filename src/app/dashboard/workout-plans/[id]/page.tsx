@@ -514,7 +514,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                 <>
                   {/* Planned exercises (gray) */}
                   <div 
-                    className="absolute h-full bg-slate-400 transition-all duration-700 ease-out"
+                    className="absolute h-full bg-slate-300"
                     style={{ 
                       width: `${totalPercentage}%`,
                       opacity: 0.5
@@ -522,7 +522,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                   />
                   {/* Completed exercises (blue) */}
                   <div 
-                    className="absolute h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-700 ease-out"
+                    className="absolute h-full bg-gradient-to-r from-blue-500 to-purple-600"
                     style={{ 
                       width: `${completedPercentage}%`
                     }}
@@ -562,7 +562,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                     <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden relative">
                       {/* Planned exercises (gray) */}
                       <div 
-                        className="absolute h-full bg-slate-400 transition-all duration-500 ease-out"
+                        className="absolute h-full bg-slate-300"
                         style={{ 
                           width: `${totalPercentage}%`,
                           opacity: 0.4
@@ -570,7 +570,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                       />
                       {/* Completed exercises (blue) */}
                       <div 
-                        className="absolute h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500 ease-out"
+                        className="absolute h-full bg-gradient-to-r from-blue-500 to-blue-600"
                         style={{ width: `${completedPercentage}%` }}
                       />
                     </div>
@@ -662,12 +662,17 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                         
                         if (exerciseId && user?.id) {
                           try {
-                            // Fetch last execution for this exercise by this user
+                            // Fetch last execution for this exercise by this user (join through workout_plans)
                             const { data: lastExecution, error } = await supabase
                               .from('exercise_executions')
-                              .select('sets, reps, weight_kg')
+                              .select(`
+                                sets, 
+                                reps, 
+                                weight_kg,
+                                workout_plan:workout_plans!inner(user_id)
+                              `)
                               .eq('exercise_id', exerciseId)
-                              .eq('user_id', user.id)
+                              .eq('workout_plan.user_id', user.id)
                               .order('executed_at', { ascending: false })
                               .limit(1)
                               .maybeSingle();
@@ -800,8 +805,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                     className="absolute inset-y-0 right-0 bg-red-500 flex items-center justify-center rounded-xl"
                     style={{ 
                       width: swipedExecution === execution.id ? `${Math.min(swipeX, 150)}px` : '0px',
-                      opacity: swipedExecution === execution.id && swipeX > 0 ? 1 : 0,
-                      transition: 'width 0.1s ease-out, opacity 0.1s ease-out'
+                      opacity: swipedExecution === execution.id && swipeX > 0 ? 1 : 0
                     }}
                   >
                     <div className="text-white font-medium px-4 whitespace-nowrap">
@@ -812,8 +816,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                   <div 
                     className="relative border border-slate-200 rounded-xl p-6 hover:border-slate-300 bg-white"
                     style={{
-                      transform: `translateX(-${swipedExecution === execution.id ? swipeX : 0}px)`,
-                      transition: swipedExecution === execution.id && touchStartX !== 0 ? 'none' : 'transform 0.2s ease-out'
+                      transform: `translateX(-${swipedExecution === execution.id ? swipeX : 0}px)`
                     }}
                     onTouchStart={(e) => editingExecution !== execution.id ? handleTouchStart(execution.id, e) : undefined}
                     onTouchMove={editingExecution !== execution.id ? handleTouchMove : undefined}
@@ -857,7 +860,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                           <summary className="cursor-pointer list-none">
                             <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
                               <span className="text-sm font-medium text-slate-600">Additional Details (Optional)</span>
-                              <svg className="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-5 h-5 text-slate-400 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                               </svg>
                             </div>
@@ -872,7 +875,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                                 id={`location-${execution.id}`}
                                 value={executionForm.location}
                                 onChange={(e) => setExecutionForm(prev => ({ ...prev, location: e.target.value }))}
-                                className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
+                                className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50"
                                 placeholder="e.g., Home, Gym"
                               />
                             </div>
@@ -885,7 +888,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                                 value={executionForm.notes}
                                 onChange={(e) => setExecutionForm(prev => ({ ...prev, notes: e.target.value }))}
                                 rows={3}
-                                className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
+                                className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50"
                                 placeholder="Add any notes about your workout..."
                               />
                             </div>
@@ -951,7 +954,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                           </span>
                           <button
                             onClick={() => startEditing(execution)}
-                            className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200 transition-colors"
+                            className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200"
                           >
                             Edit
                           </button>
