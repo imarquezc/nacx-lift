@@ -93,6 +93,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
   const [swipedExecution, setSwipedExecution] = useState<string | null>(null);
   const [swipeX, setSwipeX] = useState(0);
   const [touchStartX, setTouchStartX] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const resolveParams = async () => {
@@ -430,6 +431,31 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
     }, 300);
   };
 
+  const handleDeleteWorkoutPlan = async () => {
+    const executionCount = exerciseExecutions.length;
+    const confirmMessage = `Are you sure you want to delete the workout plan? ${executionCount} exercise execution${executionCount !== 1 ? 's' : ''} will be deleted.`;
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('workout_plans')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      router.push('/dashboard/workout-plans');
+    } catch (error) {
+      console.error('Error deleting workout plan:', error);
+      setError('Failed to delete workout plan. Please try again.');
+      setIsDeleting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
@@ -480,12 +506,28 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
         <div className="mb-8">
           <div className="flex items-start justify-between mb-2">
             <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{workoutPlan.name}</h1>
-            <Link
-              href={`/dashboard/workout-plans/${id}/edit`}
-              className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-            >
-              Edit Plan
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/dashboard/workout-plans/${id}/edit`}
+                className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+              >
+                Edit Plan
+              </Link>
+              <button
+                onClick={handleDeleteWorkoutPlan}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isDeleting ? (
+                  <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                )}
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
           </div>
           {workoutPlan.description && (
             <p className="text-lg text-slate-600">{workoutPlan.description}</p>
