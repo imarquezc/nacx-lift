@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import WorkoutTemplateSelector from '@/components/WorkoutTemplateSelector';
+import { WorkoutTemplate, applyTemplateToTargets } from '@/utils/workoutTemplates';
 
 interface MuscleGroup {
   id: string;
@@ -13,7 +15,7 @@ interface MuscleGroup {
 
 interface MuscleTarget {
   muscle_group_id: string;
-  exercises_target: number;
+  exercises_target: number | '';
 }
 
 export default function NewWorkoutPlan() {
@@ -26,8 +28,17 @@ export default function NewWorkoutPlan() {
   const [muscleTargets, setMuscleTargets] = useState<MuscleTarget[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>();
+  const [lastWorkoutPlan, setLastWorkoutPlan] = useState<{
+    id: string;
+    name: string;
+    description: string | null;
+    total_exercises_planned: number;
+    muscleTargets: MuscleTarget[];
+  } | null>(null);
+  const [showLastWorkoutSuggestion, setShowLastWorkoutSuggestion] = useState(false);
 
-  const totalExercises = muscleTargets.reduce((sum, target) => sum + target.exercises_target, 0);
+  const totalExercises = muscleTargets.reduce((sum, target) => sum + (typeof target.exercises_target === 'number' ? target.exercises_target : 0), 0);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -49,24 +60,82 @@ export default function NewWorkoutPlan() {
       }
 
       setMuscleGroups(data || []);
-      // Initialize muscle targets with 0 exercises for each muscle group
+      // Initialize muscle targets with empty values for each muscle group
       setMuscleTargets(data?.map(group => ({
         muscle_group_id: group.id,
-        exercises_target: 0
+        exercises_target: ''
       })) || []);
     };
 
     fetchMuscleGroups();
   }, []);
 
-  const handleMuscleTargetChange = (muscleGroupId: string, value: number) => {
+  // Fetch last workout plan
+  useEffect(() => {
+    const fetchLastWorkoutPlan = async () => {
+      if (!user) return;
+
+      const { data: plans, error: plansError } = await supabase
+        .from('workout_plans')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!plansError && plans && plans.length > 0) {
+        const lastPlan = plans[0];
+        
+        // Fetch the muscle targets for this plan
+        const { data: targets, error: targetsError } = await supabase
+          .from('workout_plan_muscle_targets')
+          .select('*')
+          .eq('workout_plan_id', lastPlan.id);
+
+        if (!targetsError && targets && muscleGroups.length > 0) {
+          const targetMap = new Map(targets.map(t => [t.muscle_group_id, t.exercises_target]));
+          const muscleTargetsFromLast = muscleGroups.map(group => ({
+            muscle_group_id: group.id,
+            exercises_target: targetMap.get(group.id) || ''
+          }));
+
+          setLastWorkoutPlan({
+            ...lastPlan,
+            muscleTargets: muscleTargetsFromLast
+          });
+          setShowLastWorkoutSuggestion(true);
+        }
+      }
+    };
+
+    if (user && muscleGroups.length > 0) {
+      fetchLastWorkoutPlan();
+    }
+  }, [user, muscleGroups]);
+
+  const handleMuscleTargetChange = (muscleGroupId: string, value: string) => {
+    const numValue = value === '' ? '' : parseInt(value) || 0;
     setMuscleTargets(prev => 
       prev.map(target => 
         target.muscle_group_id === muscleGroupId 
-          ? { ...target, exercises_target: value }
+          ? { ...target, exercises_target: numValue }
           : target
       )
     );
+  };
+
+  const handleTemplateSelect = (template: WorkoutTemplate) => {
+    const newTargets = applyTemplateToTargets(template, muscleGroups);
+    setMuscleTargets(newTargets);
+    setSelectedTemplateId(template.id);
+  };
+
+  const applyLastWorkoutPlan = () => {
+    if (lastWorkoutPlan) {
+      setName(`${lastWorkoutPlan.name} (Copy)`);
+      setDescription(lastWorkoutPlan.description || '');
+      setMuscleTargets(lastWorkoutPlan.muscleTargets);
+      setShowLastWorkoutSuggestion(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -121,11 +190,11 @@ export default function NewWorkoutPlan() {
 
       // Create muscle targets
       const muscleTargetsToInsert = muscleTargets
-        .filter(target => target.exercises_target > 0)
+        .filter(target => typeof target.exercises_target === 'number' && target.exercises_target > 0)
         .map(target => ({
           workout_plan_id: workoutPlan.id,
           muscle_group_id: target.muscle_group_id,
-          exercises_target: target.exercises_target
+          exercises_target: target.exercises_target as number
         }));
 
       if (muscleTargetsToInsert.length > 0) {
@@ -204,6 +273,44 @@ export default function NewWorkoutPlan() {
           </p>
         </div>
 
+        {/* Last Workout Suggestion Banner */}
+        {showLastWorkoutSuggestion && lastWorkoutPlan && (
+          <div className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-slate-900">
+                  Start with your last plan?
+                </p>
+                <p className="text-xs text-slate-600 mt-1">
+                  &quot;{lastWorkoutPlan.name}&quot; - {lastWorkoutPlan.total_exercises_planned} exercises
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={applyLastWorkoutPlan}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Apply
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowLastWorkoutSuggestion(false)}
+                  className="px-4 py-2 bg-white text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors border border-slate-200"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Template Selector */}
+        <WorkoutTemplateSelector 
+          onSelectTemplate={handleTemplateSelect}
+          selectedTemplateId={selectedTemplateId}
+        />
+
         <form onSubmit={handleSubmit} className="w-full">
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 space-y-8">
             {error && (
@@ -252,27 +359,75 @@ export default function NewWorkoutPlan() {
                   <h2 className="text-lg font-semibold text-slate-900">Muscle Group Targets</h2>
                   <p className="text-sm text-slate-600 mt-1">Set target exercise counts for each muscle group</p>
                 </div>
-                <div className="text-right">
+                <div className="flex flex-col items-end">
                   <div className="text-sm text-slate-500">Total Exercises</div>
                   <div className="text-2xl font-bold text-blue-600">{totalExercises}</div>
+                  {totalExercises > 0 && (
+                    <div className="flex gap-2 mt-2 justify-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMuscleTargets(prev => prev.map(target => ({
+                            ...target,
+                            exercises_target: typeof target.exercises_target === 'number' 
+                              ? Math.floor(target.exercises_target / 2) || ''
+                              : ''
+                          })));
+                        }}
+                        className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors font-medium"
+                        title="Halve all exercises"
+                      >
+                        ÷2
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMuscleTargets(prev => prev.map(target => ({
+                            ...target,
+                            exercises_target: typeof target.exercises_target === 'number' 
+                              ? target.exercises_target * 2
+                              : ''
+                          })));
+                        }}
+                        className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors font-medium"
+                        title="Double all exercises"
+                      >
+                        ×2
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {muscleGroups.map((group) => (
-                  <div key={group.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-                    <label htmlFor={`target-${group.id}`} className="block text-sm font-medium text-slate-700">
-                      {group.name}
-                    </label>
-                    <input
-                      type="number"
-                      id={`target-${group.id}`}
-                      min="0"
-                      value={muscleTargets.find(t => t.muscle_group_id === group.id)?.exercises_target || 0}
-                      onChange={(e) => handleMuscleTargetChange(group.id, parseInt(e.target.value) || 0)}
-                      className="block w-20 rounded-lg border-slate-300 bg-white text-slate-900 text-center shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors"
-                    />
-                  </div>
-                ))}
+                {muscleGroups.map((group) => {
+                  const target = muscleTargets.find(t => t.muscle_group_id === group.id);
+                  const exerciseCount = typeof target?.exercises_target === 'number' ? target.exercises_target : 0;
+                  const percentage = totalExercises > 0 ? Math.round((exerciseCount / totalExercises) * 100) : 0;
+                  
+                  return (
+                    <div key={group.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <label htmlFor={`target-${group.id}`} className="block text-sm font-medium text-slate-700">
+                          {group.name}
+                        </label>
+                        {totalExercises > 0 && exerciseCount > 0 && (
+                          <span className="text-xs text-slate-500 font-medium">
+                            {percentage}%
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        id={`target-${group.id}`}
+                        min="0"
+                        value={target?.exercises_target || ''}
+                        onChange={(e) => handleMuscleTargetChange(group.id, e.target.value)}
+                        placeholder="0"
+                        className="block w-20 rounded-lg border-slate-300 bg-white text-slate-900 text-center shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50 transition-colors placeholder:text-slate-400"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

@@ -15,7 +15,7 @@ interface MuscleGroup {
 interface MuscleTarget {
   id?: string;
   muscle_group_id: string;
-  exercises_target: number;
+  exercises_target: number | '';
   muscle_group?: MuscleGroup;
 }
 
@@ -91,7 +91,7 @@ export default function WorkoutPlanEdit({ params }: WorkoutPlanEditProps) {
           const existing = targetMap.get(group.id);
           return existing || {
             muscle_group_id: group.id,
-            exercises_target: 0,
+            exercises_target: '',
             muscle_group: group
           };
         });
@@ -106,11 +106,12 @@ export default function WorkoutPlanEdit({ params }: WorkoutPlanEditProps) {
     fetchData();
   }, [id, user]);
 
-  const handleTargetChange = (muscleGroupId: string, value: number) => {
+  const handleTargetChange = (muscleGroupId: string, value: string) => {
+    const numValue = value === '' ? '' : parseInt(value) || 0;
     setMuscleTargets(prev => 
       prev.map(target => 
         target.muscle_group_id === muscleGroupId 
-          ? { ...target, exercises_target: value }
+          ? { ...target, exercises_target: numValue }
           : target
       )
     );
@@ -126,7 +127,7 @@ export default function WorkoutPlanEdit({ params }: WorkoutPlanEditProps) {
 
     try {
       // Update workout plan
-      const totalExercises = muscleTargets.reduce((sum, target) => sum + target.exercises_target, 0);
+      const totalExercises = muscleTargets.reduce((sum, target) => sum + (typeof target.exercises_target === 'number' ? target.exercises_target : 0), 0);
       
       const { error: updateError } = await supabase
         .from('workout_plans')
@@ -151,11 +152,11 @@ export default function WorkoutPlanEdit({ params }: WorkoutPlanEditProps) {
 
       // Insert new muscle targets (only those with target > 0)
       const targetsToInsert = muscleTargets
-        .filter(target => target.exercises_target > 0)
+        .filter(target => typeof target.exercises_target === 'number' && target.exercises_target > 0)
         .map(target => ({
           workout_plan_id: id,
           muscle_group_id: target.muscle_group_id,
-          exercises_target: target.exercises_target
+          exercises_target: target.exercises_target as number
         }));
 
       if (targetsToInsert.length > 0) {
@@ -275,21 +276,28 @@ export default function WorkoutPlanEdit({ params }: WorkoutPlanEditProps) {
                   <div className="flex items-center space-x-2">
                     <button
                       type="button"
-                      onClick={() => handleTargetChange(target.muscle_group_id, Math.max(0, target.exercises_target - 1))}
+                      onClick={() => {
+                        const current = typeof target.exercises_target === 'number' ? target.exercises_target : 0;
+                        handleTargetChange(target.muscle_group_id, String(Math.max(0, current - 1)));
+                      }}
                       className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 transition-colors"
                     >
                       -
                     </button>
                     <input
                       type="number"
-                      value={target.exercises_target}
-                      onChange={(e) => handleTargetChange(target.muscle_group_id, Math.max(0, parseInt(e.target.value) || 0))}
+                      value={target.exercises_target || ''}
+                      onChange={(e) => handleTargetChange(target.muscle_group_id, e.target.value)}
+                      placeholder="0"
                       className="w-16 text-center rounded-lg border-slate-300 bg-white text-slate-900"
                       min="0"
                     />
                     <button
                       type="button"
-                      onClick={() => handleTargetChange(target.muscle_group_id, target.exercises_target + 1)}
+                      onClick={() => {
+                        const current = typeof target.exercises_target === 'number' ? target.exercises_target : 0;
+                        handleTargetChange(target.muscle_group_id, String(current + 1));
+                      }}
                       className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 transition-colors"
                     >
                       +
