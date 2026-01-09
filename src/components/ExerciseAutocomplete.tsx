@@ -6,6 +6,7 @@ interface Exercise {
   id: string;
   name: string;
   description?: string;
+  aliases?: string[];
 }
 
 interface ExerciseAutocompleteProps {
@@ -30,9 +31,35 @@ export default function ExerciseAutocomplete({
 
   useEffect(() => {
     if (query) {
-      const filtered = exercises.filter(exercise => 
-        exercise.name.toLowerCase().includes(query.toLowerCase())
-      );
+      const searchTerm = query.toLowerCase();
+      const filtered = exercises.filter(exercise => {
+        // Search in name
+        if (exercise.name.toLowerCase().includes(searchTerm)) {
+          return true;
+        }
+        // Search in aliases
+        if (exercise.aliases && exercise.aliases.length > 0) {
+          return exercise.aliases.some(alias =>
+            alias.toLowerCase().includes(searchTerm)
+          );
+        }
+        return false;
+      });
+
+      // Sort results: exact matches first, then name matches, then alias matches
+      filtered.sort((a, b) => {
+        const aNameMatch = a.name.toLowerCase().includes(searchTerm);
+        const bNameMatch = b.name.toLowerCase().includes(searchTerm);
+        const aExact = a.name.toLowerCase() === searchTerm;
+        const bExact = b.name.toLowerCase() === searchTerm;
+
+        if (aExact && !bExact) return -1;
+        if (bExact && !aExact) return 1;
+        if (aNameMatch && !bNameMatch) return -1;
+        if (bNameMatch && !aNameMatch) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
       setFilteredExercises(filtered);
       setIsOpen(true);
     } else {
@@ -55,6 +82,18 @@ export default function ExerciseAutocomplete({
     onChange(exerciseId);
     setQuery('');
     setIsOpen(false);
+  };
+
+  // Find matching alias for display
+  const getMatchingAlias = (exercise: Exercise): string | null => {
+    if (!query || !exercise.aliases || exercise.aliases.length === 0) return null;
+    const searchTerm = query.toLowerCase();
+    // Only show alias if name doesn't match but alias does
+    if (exercise.name.toLowerCase().includes(searchTerm)) return null;
+    const matchingAlias = exercise.aliases.find(alias =>
+      alias.toLowerCase().includes(searchTerm)
+    );
+    return matchingAlias || null;
   };
 
   return (
@@ -90,22 +129,32 @@ export default function ExerciseAutocomplete({
           </button>
         )}
       </div>
-      
+
       {isOpen && filteredExercises.length > 0 && (
         <div className="absolute z-10 w-full mt-2 bg-white rounded-xl border-2 border-slate-200 shadow-xl max-h-60 overflow-y-auto">
-          {filteredExercises.map((exercise) => (
-            <button
-              key={exercise.id}
-              type="button"
-              onClick={() => handleSelect(exercise.id)}
-              className="w-full px-6 py-4 text-left hover:bg-slate-50 transition-colors first:rounded-t-lg last:rounded-b-lg"
-            >
-              <div className="font-medium text-slate-900">{exercise.name}</div>
-              {exercise.description && (
-                <div className="text-sm text-slate-500 mt-1 line-clamp-2">{exercise.description}</div>
-              )}
-            </button>
-          ))}
+          {filteredExercises.map((exercise) => {
+            const matchingAlias = getMatchingAlias(exercise);
+            return (
+              <button
+                key={exercise.id}
+                type="button"
+                onClick={() => handleSelect(exercise.id)}
+                className="w-full px-6 py-4 text-left hover:bg-slate-50 transition-colors first:rounded-t-lg last:rounded-b-lg"
+              >
+                <div className="font-medium text-slate-900">
+                  {exercise.name}
+                  {matchingAlias && (
+                    <span className="ml-2 text-sm font-normal text-blue-600">
+                      (aka &ldquo;{matchingAlias}&rdquo;)
+                    </span>
+                  )}
+                </div>
+                {exercise.description && (
+                  <div className="text-sm text-slate-500 mt-1 line-clamp-2">{exercise.description}</div>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

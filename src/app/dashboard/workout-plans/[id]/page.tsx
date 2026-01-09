@@ -37,6 +37,7 @@ interface Exercise {
   primary_muscle_group_id: string;
   secondary_muscle_group_id: string | null;
   description?: string;
+  aliases?: string[];
 }
 
 interface ExerciseExecution {
