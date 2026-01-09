@@ -949,32 +949,38 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                           </div>
                         </details>
                       </div>
-                      <div className="flex gap-4 pt-6">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteExecution(execution.id)}
-                          className="px-6 py-4 text-lg font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 active:bg-red-800 touch-manipulation"
-                        >
-                          Delete
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingExecution(null)}
-                          className="flex-1 px-6 py-4 text-lg font-medium text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200 active:bg-slate-300 touch-manipulation"
-                        >
-                          Cancel
-                        </button>
+                      {/* Action buttons - stacked layout for better mobile UX */}
+                      <div className="flex flex-col gap-3 pt-6">
+                        {/* Primary action - Save */}
                         <button
                           type="submit"
                           disabled={isSubmitting}
-                          className="flex-1 px-6 py-4 text-lg font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed active:bg-blue-800 touch-manipulation"
+                          className="w-full px-6 py-4 text-lg font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed active:bg-blue-800 touch-manipulation"
                         >
                           {isSubmitting ? (
                             <div className="flex items-center justify-center">
                               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
                               Saving...
                             </div>
-                          ) : 'Save Workout'}
+                          ) : 'Save Changes'}
+                        </button>
+
+                        {/* Secondary action - Cancel */}
+                        <button
+                          type="button"
+                          onClick={() => setEditingExecution(null)}
+                          className="w-full px-6 py-3 text-base font-medium text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 active:bg-slate-300 touch-manipulation"
+                        >
+                          Cancel
+                        </button>
+
+                        {/* Destructive action - Delete (smaller, less prominent) */}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteExecution(execution.id)}
+                          className="w-full px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg touch-manipulation transition-colors"
+                        >
+                          Delete Exercise
                         </button>
                       </div>
                     </form>
