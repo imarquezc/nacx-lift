@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 
-interface WeightSliderProps {
+interface WeightInputProps {
   value: number;
   onChange: (value: number) => void;
   min?: number;
@@ -12,13 +12,13 @@ interface WeightSliderProps {
 
 const STEPS = [1, 2.5, 10] as const;
 
-export default function WeightSlider({
+export default function WeightInput({
   value,
   onChange,
   min = 0,
   max = 200,
   unit = 'kg'
-}: WeightSliderProps) {
+}: WeightInputProps) {
   const [step, setStep] = useState(2.5);
 
   const lastTap = useRef(0);

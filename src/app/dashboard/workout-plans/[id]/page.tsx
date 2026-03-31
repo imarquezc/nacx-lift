@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import ExerciseAutocomplete from '@/components/ExerciseAutocomplete';
 import GymNumberInput from '@/components/GymNumberInput';
-import WeightSlider from '@/components/WeightSlider';
+import WeightInput from '@/components/WeightInput';
 
 interface MuscleGroup {
   id: string;
@@ -846,7 +846,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                       max={100}
                     />
                   </div>
-                  <WeightSlider
+                  <WeightInput
                     value={executionForm.weight_kg}
                     onChange={(value) => setExecutionForm(prev => ({ ...prev, weight_kg: value }))}
                     min={0}
@@ -967,7 +967,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                                   max={100}
                                 />
                               </div>
-                              <WeightSlider
+                              <WeightInput
                                 value={executionForm.weight_kg}
                                 onChange={(value) => setExecutionForm(prev => ({ ...prev, weight_kg: value }))}
                                 min={0}

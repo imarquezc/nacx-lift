@@ -1,6 +1,13 @@
 {
   "permissions": {
     "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "Agent",
       "Bash(find:*)",
       "Bash(npm run lint)",
       "Bash(npx supabase:*)",
@@ -12,7 +19,11 @@
       "Bash(grep:*)",
       "Bash(npm install:*)",
       "Bash(npm run reset-exercises:*)",
-      "Bash(yarn run lint)"
+      "Bash(yarn run lint)",
+      "Bash(npx next:*)",
+      "Bash(yarn run:*)",
+      "Bash(next --version)",
+      "Bash(git:*)"
     ],
     "deny": []
   }
