@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -404,26 +404,32 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!swipedExecution) return;
-    
+
     const currentX = e.touches[0].clientX;
     const diff = touchStartX - currentX;
-    
-    // Only allow left swipe (negative values)
+
+    // Left swipe (positive diff) = delete, Right swipe (negative diff) = edit
     if (diff > 0) {
-      setSwipeX(Math.min(diff, 150)); // Limit swipe distance
+      setSwipeX(Math.min(diff, 150));
     } else {
-      setSwipeX(0); // Reset if swiping right
+      setSwipeX(Math.max(diff, -150));
     }
   };
 
   const handleTouchEnd = () => {
     if (!swipedExecution) return;
-    
-    // If swiped more than 80px, trigger delete
+
     if (swipeX > 80) {
+      // Left swipe = delete
       handleDeleteExecution(swipedExecution);
+    } else if (swipeX < -80) {
+      // Right swipe = edit
+      const execution = exerciseExecutions.find(e => e.id === swipedExecution);
+      if (execution) {
+        startEditing(execution);
+      }
     }
-    
+
     // Reset swipe state with animation
     setSwipeX(0);
     setTimeout(() => {
@@ -456,6 +462,35 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
       setIsDeleting(false);
     }
   };
+
+  const groupedExercises = useMemo(() => {
+    const groups: { date: string; label: string; executions: ExerciseExecution[] }[] = [];
+    const groupMap = new Map<string, ExerciseExecution[]>();
+
+    for (const execution of exerciseExecutions) {
+      const dateKey = new Date(execution.executed_at).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      if (!groupMap.has(dateKey)) {
+        groupMap.set(dateKey, []);
+      }
+      groupMap.get(dateKey)!.push(execution);
+    }
+
+    for (const [date, executions] of groupMap) {
+      const label = new Date(executions[0].executed_at).toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      groups.push({ date, label, executions });
+    }
+
+    return groups;
+  }, [exerciseExecutions]);
 
   if (isLoading) {
     return (
@@ -816,7 +851,6 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                     onChange={(value) => setExecutionForm(prev => ({ ...prev, weight_kg: value }))}
                     min={0}
                     max={200}
-                    step={2.5}
                   />
                 </div>
 
@@ -837,7 +871,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
           )}
 
           {/* Exercise List */}
-          <div className="space-y-6">
+          <div className="space-y-8">
             {exerciseExecutions.length === 0 && !isAddingExercise ? (
               <div className="text-center py-12">
                 <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-4">
@@ -849,211 +883,231 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                 <p className="text-slate-600">Add your first exercise to start tracking your progress.</p>
               </div>
             ) : (
-              exerciseExecutions.map((execution) => (
-                <div 
-                  key={execution.id} 
-                  className="relative overflow-hidden"
-                >
-                  {/* Delete indicator */}
-                  <div 
-                    className="absolute inset-y-0 right-0 bg-red-500 flex items-center justify-center rounded-xl"
-                    style={{ 
-                      width: swipedExecution === execution.id ? `${Math.min(swipeX, 150)}px` : '0px',
-                      opacity: swipedExecution === execution.id && swipeX > 0 ? 1 : 0
-                    }}
-                  >
-                    <div className="text-white font-medium px-4 whitespace-nowrap">
-                      {swipeX > 80 ? '🗑️ Delete' : 'Swipe'}
+              groupedExercises.map((group) => (
+                <div key={group.date}>
+                  {/* Day Header */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <h3 className="text-sm font-semibold text-slate-700">{group.label}</h3>
                     </div>
+                    <div className="flex-1 h-px bg-slate-200"></div>
+                    <span className="text-xs text-slate-400">{group.executions.length} exercise{group.executions.length !== 1 ? 's' : ''}</span>
                   </div>
-                  
-                  <div 
-                    className="relative border border-slate-200 rounded-xl p-6 hover:border-slate-300 bg-white"
-                    style={{
-                      transform: `translateX(-${swipedExecution === execution.id ? swipeX : 0}px)`
-                    }}
-                    onTouchStart={(e) => editingExecution !== execution.id ? handleTouchStart(execution.id, e) : undefined}
-                    onTouchMove={editingExecution !== execution.id ? handleTouchMove : undefined}
-                    onTouchEnd={editingExecution !== execution.id ? handleTouchEnd : undefined}
-                  >
-                  {editingExecution === execution.id ? (
-                    <form 
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        handleExecutionUpdate(execution.id);
-                      }}
-                      className="space-y-8"
-                    >
-                      <div className="bg-slate-50 rounded-2xl p-4 md:p-6">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
-                          <GymNumberInput
-                            value={executionForm.sets}
-                            onChange={(value) => setExecutionForm(prev => ({ ...prev, sets: value }))}
-                            label="Sets"
-                            min={0}
-                            max={50}
-                          />
-                          <GymNumberInput
-                            value={executionForm.reps}
-                            onChange={(value) => setExecutionForm(prev => ({ ...prev, reps: value }))}
-                            label="Reps"
-                            min={0}
-                            max={100}
-                          />
-                        </div>
-                        <WeightSlider
-                          value={executionForm.weight_kg}
-                          onChange={(value) => setExecutionForm(prev => ({ ...prev, weight_kg: value }))}
-                          min={0}
-                          max={200}
-                          step={2.5}
-                        />
-                      </div>
-                      <div className="space-y-4">
-                        <details className="group">
-                          <summary className="cursor-pointer list-none">
-                            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-                              <span className="text-sm font-medium text-slate-600">Additional Details (Optional)</span>
-                              <svg className="w-5 h-5 text-slate-400 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                          </summary>
-                          <div className="mt-4 space-y-4">
-                            <div>
-                              <label htmlFor={`location-${execution.id}`} className="block text-sm font-medium text-slate-700 mb-2">
-                                Location
-                              </label>
-                              <input
-                                type="text"
-                                id={`location-${execution.id}`}
-                                value={executionForm.location}
-                                onChange={(e) => setExecutionForm(prev => ({ ...prev, location: e.target.value }))}
-                                className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50"
-                                placeholder="e.g., Home, Gym"
-                              />
-                            </div>
-                            <div>
-                              <label htmlFor={`notes-${execution.id}`} className="block text-sm font-medium text-slate-700 mb-2">
-                                Notes
-                              </label>
-                              <textarea
-                                id={`notes-${execution.id}`}
-                                value={executionForm.notes}
-                                onChange={(e) => setExecutionForm(prev => ({ ...prev, notes: e.target.value }))}
-                                rows={3}
-                                className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50"
-                                placeholder="Add any notes about your workout..."
-                              />
-                            </div>
-                          </div>
-                        </details>
-                      </div>
-                      {/* Action buttons - stacked layout for better mobile UX */}
-                      <div className="flex flex-col gap-3 pt-6">
-                        {/* Primary action - Save */}
-                        <button
-                          type="submit"
-                          disabled={isSubmitting}
-                          className="w-full px-6 py-4 text-lg font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed active:bg-blue-800 touch-manipulation"
-                        >
-                          {isSubmitting ? (
-                            <div className="flex items-center justify-center">
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                              Saving...
-                            </div>
-                          ) : 'Save Changes'}
-                        </button>
 
-                        {/* Secondary action - Cancel */}
-                        <button
-                          type="button"
-                          onClick={() => setEditingExecution(null)}
-                          className="w-full px-6 py-3 text-base font-medium text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 active:bg-slate-300 touch-manipulation"
+                  {/* Exercises for this day */}
+                  <div className="space-y-3 mt-3">
+                    {group.executions.map((execution) => (
+                      <div
+                        key={execution.id}
+                        className="relative overflow-hidden"
+                      >
+                        {/* Edit indicator (left side, revealed on right swipe) */}
+                        <div
+                          className="absolute inset-y-0 left-0 z-0 bg-blue-500 flex items-center justify-center rounded-xl"
+                          style={{
+                            width: swipedExecution === execution.id && swipeX < 0 ? `${Math.min(Math.abs(swipeX), 150)}px` : '0px',
+                            opacity: swipedExecution === execution.id && swipeX < 0 ? 1 : 0
+                          }}
                         >
-                          Cancel
-                        </button>
-
-                        {/* Destructive action - Delete (smaller, less prominent) */}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteExecution(execution.id)}
-                          className="w-full px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg touch-manipulation transition-colors"
-                        >
-                          Delete Exercise
-                        </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <>
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-slate-900 mb-1">{execution.exercise.name}</h3>
-                          <p className="text-sm text-slate-500">
-                            {new Date(execution.executed_at).toLocaleDateString('en-US', {
-                              weekday: 'short',
-                              month: 'short', 
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={execution.completed}
-                            onChange={() => handleToggleCompleted(execution.id, execution.completed)}
-                            className="w-5 h-5 rounded border-2 border-slate-300 text-blue-600 focus:ring-0 cursor-pointer"
-                          />
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                            execution.completed 
-                              ? 'bg-emerald-100 text-emerald-700' 
-                              : 'bg-yellow-100 text-yellow-700'
-                          }`}>
-                            {execution.completed ? 'Completed' : 'Pending'}
-                          </span>
-                          <button
-                            onClick={() => startEditing(execution)}
-                            className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200"
-                          >
-                            Edit
-                          </button>
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        {execution.sets > 0 && (
-                          <div className="flex items-center text-sm text-slate-600">
-                            <svg className="w-4 h-4 mr-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                            </svg>
-                            <strong>{execution.sets}</strong> sets × <strong>{execution.reps}</strong> reps
-                            {execution.weight_kg > 0 && (
-                              <>
-                                {' @ '}<strong>{execution.weight_kg}kg</strong>
-                              </>
-                            )}
-                          </div>
-                        )}
-                        {execution.location && (
-                          <div className="flex items-center text-sm text-slate-600">
-                            <svg className="w-4 h-4 mr-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            {execution.location}
-                          </div>
-                        )}
-                        {execution.notes && (
-                          <div className="flex items-start text-sm text-slate-600">
-                            <svg className="w-4 h-4 mr-2 mt-0.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="text-white font-medium px-4 whitespace-nowrap flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
-                            <span className="leading-relaxed">{execution.notes}</span>
+                            {swipeX < -80 ? 'Edit' : ''}
                           </div>
+                        </div>
+
+                        {/* Delete indicator (right side, revealed on left swipe) */}
+                        <div
+                          className="absolute inset-y-0 right-0 z-0 bg-red-500 flex items-center justify-center rounded-xl"
+                          style={{
+                            width: swipedExecution === execution.id && swipeX > 0 ? `${Math.min(swipeX, 150)}px` : '0px',
+                            opacity: swipedExecution === execution.id && swipeX > 0 ? 1 : 0
+                          }}
+                        >
+                          <div className="text-white font-medium px-4 whitespace-nowrap">
+                            {swipeX > 80 ? '🗑️ Delete' : 'Swipe'}
+                          </div>
+                        </div>
+
+                        <div
+                          className="relative z-10 border border-slate-200 rounded-xl p-4 hover:border-slate-300 bg-white"
+                          style={{
+                            transform: `translateX(${swipedExecution === execution.id ? (swipeX < 0 ? Math.abs(swipeX) : -swipeX) : 0}px)`
+                          }}
+                          onTouchStart={(e) => editingExecution !== execution.id ? handleTouchStart(execution.id, e) : undefined}
+                          onTouchMove={editingExecution !== execution.id ? handleTouchMove : undefined}
+                          onTouchEnd={editingExecution !== execution.id ? handleTouchEnd : undefined}
+                        >
+                        {editingExecution === execution.id ? (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              handleExecutionUpdate(execution.id);
+                            }}
+                            className="space-y-8"
+                          >
+                            <div className="bg-slate-50 rounded-2xl p-4 md:p-6">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
+                                <GymNumberInput
+                                  value={executionForm.sets}
+                                  onChange={(value) => setExecutionForm(prev => ({ ...prev, sets: value }))}
+                                  label="Sets"
+                                  min={0}
+                                  max={50}
+                                />
+                                <GymNumberInput
+                                  value={executionForm.reps}
+                                  onChange={(value) => setExecutionForm(prev => ({ ...prev, reps: value }))}
+                                  label="Reps"
+                                  min={0}
+                                  max={100}
+                                />
+                              </div>
+                              <WeightSlider
+                                value={executionForm.weight_kg}
+                                onChange={(value) => setExecutionForm(prev => ({ ...prev, weight_kg: value }))}
+                                min={0}
+                                max={200}
+                              />
+                            </div>
+                            <div className="space-y-4">
+                              <details className="group">
+                                <summary className="cursor-pointer list-none">
+                                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                                    <span className="text-sm font-medium text-slate-600">Additional Details (Optional)</span>
+                                    <svg className="w-5 h-5 text-slate-400 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </div>
+                                </summary>
+                                <div className="mt-4 space-y-4">
+                                  <div>
+                                    <label htmlFor={`location-${execution.id}`} className="block text-sm font-medium text-slate-700 mb-2">
+                                      Location
+                                    </label>
+                                    <input
+                                      type="text"
+                                      id={`location-${execution.id}`}
+                                      value={executionForm.location}
+                                      onChange={(e) => setExecutionForm(prev => ({ ...prev, location: e.target.value }))}
+                                      className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50"
+                                      placeholder="e.g., Home, Gym"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label htmlFor={`notes-${execution.id}`} className="block text-sm font-medium text-slate-700 mb-2">
+                                      Notes
+                                    </label>
+                                    <textarea
+                                      id={`notes-${execution.id}`}
+                                      value={executionForm.notes}
+                                      onChange={(e) => setExecutionForm(prev => ({ ...prev, notes: e.target.value }))}
+                                      rows={3}
+                                      className="block w-full rounded-lg border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:ring-opacity-50"
+                                      placeholder="Add any notes about your workout..."
+                                    />
+                                  </div>
+                                </div>
+                              </details>
+                            </div>
+                            {/* Action buttons - stacked layout for better mobile UX */}
+                            <div className="flex flex-col gap-3 pt-6">
+                              {/* Primary action - Save */}
+                              <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="w-full px-6 py-4 text-lg font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed active:bg-blue-800 touch-manipulation"
+                              >
+                                {isSubmitting ? (
+                                  <div className="flex items-center justify-center">
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                                    Saving...
+                                  </div>
+                                ) : 'Save Changes'}
+                              </button>
+
+                              {/* Secondary action - Cancel */}
+                              <button
+                                type="button"
+                                onClick={() => setEditingExecution(null)}
+                                className="w-full px-6 py-3 text-base font-medium text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 active:bg-slate-300 touch-manipulation"
+                              >
+                                Cancel
+                              </button>
+
+                              {/* Destructive action - Delete (smaller, less prominent) */}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteExecution(execution.id)}
+                                className="w-full px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg touch-manipulation transition-colors"
+                              >
+                                Delete Exercise
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <>
+                            <div className="flex justify-between items-center mb-2">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={execution.completed}
+                                  onChange={() => handleToggleCompleted(execution.id, execution.completed)}
+                                  className="w-5 h-5 rounded border-2 border-slate-300 text-blue-600 focus:ring-0 cursor-pointer flex-shrink-0"
+                                />
+                                <h3 className={`font-semibold truncate ${execution.completed ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{execution.exercise.name}</h3>
+                              </div>
+                              <button
+                                onClick={() => startEditing(execution)}
+                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex-shrink-0"
+                                title="Edit exercise"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                            </div>
+                            <div className="space-y-1 ml-8">
+                              {execution.sets > 0 && (
+                                <div className="flex items-center text-sm text-slate-600">
+                                  <svg className="w-4 h-4 mr-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                  </svg>
+                                  <strong>{execution.sets}</strong> sets × <strong>{execution.reps}</strong> reps
+                                  {execution.weight_kg > 0 && (
+                                    <>
+                                      {' @ '}<strong>{execution.weight_kg}kg</strong>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                              {execution.location && (
+                                <div className="flex items-center text-sm text-slate-600">
+                                  <svg className="w-4 h-4 mr-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  </svg>
+                                  {execution.location}
+                                </div>
+                              )}
+                              {execution.notes && (
+                                <div className="flex items-start text-sm text-slate-600">
+                                  <svg className="w-4 h-4 mr-2 mt-0.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                  <span className="leading-relaxed">{execution.notes}</span>
+                                </div>
+                              )}
+                            </div>
+                          </>
                         )}
+                        </div>
                       </div>
-                    </>
-                  )}
+                    ))}
                   </div>
                 </div>
               ))

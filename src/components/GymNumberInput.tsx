@@ -1,5 +1,7 @@
 'use client';
 
+import { useRef, useCallback } from 'react';
+
 interface GymNumberInputProps {
   value: number;
   onChange: (value: number) => void;
@@ -17,17 +19,25 @@ export default function GymNumberInput({
   max = 999,
   step = 1 
 }: GymNumberInputProps) {
-  const increment = () => {
+  const lastTap = useRef(0);
+
+  const increment = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTap.current < 100) return;
+    lastTap.current = now;
     if (value < max) {
       onChange(value + step);
     }
-  };
+  }, [value, max, step, onChange]);
 
-  const decrement = () => {
+  const decrement = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTap.current < 100) return;
+    lastTap.current = now;
     if (value > min) {
       onChange(value - step);
     }
-  };
+  }, [value, min, step, onChange]);
 
   return (
     <div className="flex flex-col items-center">
