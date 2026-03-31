@@ -57,19 +57,46 @@ export default function Dashboard() {
       if (!user) return;
 
       try {
-        // Fetch most recent non-completed workout plan
-        const { data: plans, error: plansError } = await supabase
-          .from('workout_plans')
-          .select('*')
-          .or('status.eq.draft,status.eq.active,status.is.null')
-          .order('updated_at', { ascending: false, nullsFirst: false })
-          .order('created_at', { ascending: false })
+        let plan: WorkoutPlan | null = null;
+
+        // First, find the plan with the most recent exercise activity
+        const { data: recentExecution } = await supabase
+          .from('exercise_executions')
+          .select('workout_plan_id')
+          .order('updated_at', { ascending: false })
           .limit(1);
 
-        if (plansError) throw plansError;
+        if (recentExecution && recentExecution.length > 0) {
+          const { data: recentPlan } = await supabase
+            .from('workout_plans')
+            .select('*')
+            .eq('id', recentExecution[0].workout_plan_id)
+            .or('status.eq.draft,status.eq.active,status.is.null')
+            .single();
 
-        if (plans && plans.length > 0) {
-          const plan = plans[0];
+          if (recentPlan) {
+            plan = recentPlan;
+          }
+        }
+
+        // Fallback: fetch the most recently updated non-completed plan
+        if (!plan) {
+          const { data: plans, error: plansError } = await supabase
+            .from('workout_plans')
+            .select('*')
+            .or('status.eq.draft,status.eq.active,status.is.null')
+            .order('updated_at', { ascending: false, nullsFirst: false })
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (plansError) throw plansError;
+
+          if (plans && plans.length > 0) {
+            plan = plans[0];
+          }
+        }
+
+        if (plan) {
           setActiveWorkoutPlan(plan);
 
           // Fetch muscle targets
