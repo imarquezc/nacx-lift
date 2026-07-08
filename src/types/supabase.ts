@@ -46,6 +46,7 @@ export type Database = {
           reps: number | null
           sets: number | null
           updated_at: string
+          weight_feedback: string | null
           weight_kg: number | null
           workout_plan_id: string
         }
@@ -60,6 +61,7 @@ export type Database = {
           reps?: number | null
           sets?: number | null
           updated_at?: string
+          weight_feedback?: string | null
           weight_kg?: number | null
           workout_plan_id: string
         }
@@ -74,6 +76,7 @@ export type Database = {
           reps?: number | null
           sets?: number | null
           updated_at?: string
+          weight_feedback?: string | null
           weight_kg?: number | null
           workout_plan_id?: string
         }

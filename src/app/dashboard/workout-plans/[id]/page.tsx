@@ -8,6 +8,9 @@ import Link from 'next/link';
 import ExerciseAutocomplete from '@/components/ExerciseAutocomplete';
 import GymNumberInput from '@/components/GymNumberInput';
 import WeightInput from '@/components/WeightInput';
+import MuscleGroupIcon from '@/components/MuscleGroupIcon';
+
+type WeightFeedback = 'increase' | 'keep' | 'decrease';
 
 interface MuscleGroup {
   id: string;
@@ -50,6 +53,7 @@ interface ExerciseExecution {
   location: string | null;
   notes: string | null;
   completed: boolean;
+  weight_feedback: WeightFeedback | null;
   exercise: Exercise;
 }
 
@@ -72,6 +76,9 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
   
   const [workoutPlan, setWorkoutPlan] = useState<WorkoutPlan | null>(null);
   const [muscleTargets, setMuscleTargets] = useState<MuscleTarget[]>([]);
+  const [muscleGroups, setMuscleGroups] = useState<MuscleGroup[]>([]);
+  const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
+  const [lastWeightFeedback, setLastWeightFeedback] = useState<WeightFeedback | null>(null);
   const [exerciseExecutions, setExerciseExecutions] = useState<ExerciseExecution[]>([]);
   const [availableExercises, setAvailableExercises] = useState<Exercise[]>([]);
   const [selectedExercise, setSelectedExercise] = useState<string>('');
@@ -134,6 +141,14 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
 
         if (targetsError) throw targetsError;
         setMuscleTargets(targets);
+
+        // Fetch all muscle groups (exercises may target groups outside this plan's targets)
+        const { data: groups, error: groupsError } = await supabase
+          .from('muscle_groups')
+          .select('*');
+
+        if (groupsError) throw groupsError;
+        setMuscleGroups(groups);
 
         // Fetch exercise executions with exercise info
         const { data: executions, error: executionsError } = await supabase
@@ -269,6 +284,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
       setNewExerciseSecondaryMuscle('');
       setIsCreatingNewExercise(false);
       setIsAddingExercise(false);
+      setLastWeightFeedback(null);
       setExecutionForm({
         sets: 4,
         reps: 8,
@@ -304,6 +320,32 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
     } catch (error) {
       console.error('Error toggling completion status:', error);
       setError('Failed to update completion status');
+    }
+  };
+
+  const handleWeightFeedback = async (executionId: string, feedback: WeightFeedback) => {
+    const execution = exerciseExecutions.find(e => e.id === executionId);
+    // Tapping the already-selected option clears the evaluation
+    const newValue = execution?.weight_feedback === feedback ? null : feedback;
+
+    try {
+      const { error } = await supabase
+        .from('exercise_executions')
+        .update({ weight_feedback: newValue })
+        .eq('id', executionId);
+
+      if (error) throw error;
+
+      setExerciseExecutions(prev =>
+        prev.map(ex =>
+          ex.id === executionId
+            ? { ...ex, weight_feedback: newValue }
+            : ex
+        )
+      );
+    } catch (error) {
+      console.error('Error saving weight feedback:', error);
+      setError('Failed to save weight feedback');
     }
   };
 
@@ -492,6 +534,28 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
     return groups;
   }, [exerciseExecutions]);
 
+  const muscleGroupName = (muscleGroupId: string) =>
+    muscleGroups.find(g => g.id === muscleGroupId)?.name || '?';
+
+  // Last 5 distinct training days, oldest first (like a football club's recent form)
+  const recentSessions = useMemo(
+    () => groupedExercises.slice(0, 5).reverse(),
+    [groupedExercises]
+  );
+
+  const wasTrainedInSession = (muscleGroupId: string, session: (typeof groupedExercises)[number]) =>
+    session.executions.some(e =>
+      e.completed &&
+      (e.exercise.primary_muscle_group_id === muscleGroupId ||
+        e.exercise.secondary_muscle_group_id === muscleGroupId)
+    );
+
+  // Only the most recent day is expanded by default; older days stay collapsed
+  const isDayExpanded = (date: string, index: number) => expandedDays[date] ?? index === 0;
+
+  const toggleDay = (date: string, index: number) =>
+    setExpandedDays(prev => ({ ...prev, [date]: !isDayExpanded(date, index) }));
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
@@ -638,7 +702,24 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                 return (
                   <div key={target.id} className="">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-slate-900">{target.muscle_group.name}</span>
+                      <div className="flex items-center gap-2">
+                        <MuscleGroupIcon name={target.muscle_group.name} />
+                        <span className="font-medium text-slate-900">{target.muscle_group.name}</span>
+                        {recentSessions.length > 0 && (
+                          <div className="flex items-center gap-1 ml-1">
+                            {recentSessions.map((session) => {
+                              const trained = wasTrainedInSession(target.muscle_group_id, session);
+                              return (
+                                <span
+                                  key={session.date}
+                                  title={`${session.label}: ${trained ? 'trained' : 'not trained'}`}
+                                  className={`w-2.5 h-2.5 rounded-full ${trained ? 'bg-emerald-500' : 'bg-red-300'}`}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-medium text-slate-600">
                           {progress.completed}{progress.planned > 0 && ` (+${progress.planned})`} / {progress.target}
@@ -678,6 +759,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
             <button
               onClick={() => {
                 setIsAddingExercise(!isAddingExercise);
+                setLastWeightFeedback(null);
                 // Reset form when opening add exercise
                 if (!isAddingExercise) {
                   setSelectedExercise('');
@@ -755,9 +837,10 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                             const { data: lastExecution, error } = await supabase
                               .from('exercise_executions')
                               .select(`
-                                sets, 
-                                reps, 
+                                sets,
+                                reps,
                                 weight_kg,
+                                weight_feedback,
                                 workout_plan:workout_plans!inner(user_id)
                               `)
                               .eq('exercise_id', exerciseId)
@@ -777,8 +860,10 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                                 location: '',
                                 notes: ''
                               });
+                              setLastWeightFeedback((lastExecution.weight_feedback as WeightFeedback) || null);
                             } else {
                               console.log('No previous execution found or incomplete data for exercise:', exerciseId);
+                              setLastWeightFeedback(null);
                             }
                           } catch (err) {
                             console.error('Error fetching last execution:', err);
@@ -852,6 +937,28 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                     min={0}
                     max={200}
                   />
+                  {lastWeightFeedback && (
+                    <div className={`flex items-center gap-2 text-sm font-medium rounded-lg px-4 py-3 ${
+                      lastWeightFeedback === 'increase'
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : lastWeightFeedback === 'decrease'
+                          ? 'bg-red-50 text-red-700'
+                          : 'bg-slate-50 text-slate-600'
+                    }`}>
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        {lastWeightFeedback === 'increase' ? (
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                        ) : lastWeightFeedback === 'decrease' ? (
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        ) : (
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14" />
+                        )}
+                      </svg>
+                      <span>
+                        Last time you noted: {lastWeightFeedback === 'increase' ? 'increase the weight' : lastWeightFeedback === 'decrease' ? 'decrease the weight' : 'keep the same weight'}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <button
@@ -883,21 +990,40 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                 <p className="text-slate-600">Add your first exercise to start tracking your progress.</p>
               </div>
             ) : (
-              groupedExercises.map((group) => (
+              groupedExercises.map((group, groupIndex) => (
                 <div key={group.date}>
-                  {/* Day Header */}
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <h3 className="text-sm font-semibold text-slate-700">{group.label}</h3>
+                  {/* Day Header (click to collapse/expand) */}
+                  <button
+                    type="button"
+                    onClick={() => toggleDay(group.date, groupIndex)}
+                    className="w-full flex items-center gap-3 mb-1 touch-manipulation"
+                  >
+                    <svg
+                      className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${isDayExpanded(group.date, groupIndex) ? 'rotate-90' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <div className="flex flex-col items-start gap-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-slate-700 truncate">{group.label}</h3>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {group.executions.slice().reverse().map((execution) => (
+                          <MuscleGroupIcon
+                            key={execution.id}
+                            name={muscleGroupName(execution.exercise.primary_muscle_group_id)}
+                            className={execution.completed ? '' : 'opacity-40'}
+                          />
+                        ))}
+                      </div>
                     </div>
                     <div className="flex-1 h-px bg-slate-200"></div>
-                    <span className="text-xs text-slate-400">{group.executions.length} exercise{group.executions.length !== 1 ? 's' : ''}</span>
-                  </div>
+                    <span className="text-xs text-slate-400 flex-shrink-0">{group.executions.length} exercise{group.executions.length !== 1 ? 's' : ''}</span>
+                  </button>
 
                   {/* Exercises for this day */}
+                  {isDayExpanded(group.date, groupIndex) && (
                   <div className="space-y-3 mt-3">
                     {group.executions.map((execution) => (
                       <div
@@ -1102,6 +1228,53 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                                   <span className="leading-relaxed">{execution.notes}</span>
                                 </div>
                               )}
+                              {execution.completed && (
+                                <div className="flex items-center gap-2 pt-2">
+                                  <span className="text-xs font-medium text-slate-400">Next time:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleWeightFeedback(execution.id, 'decrease')}
+                                    title="Decrease weight next time"
+                                    className={`w-8 h-8 flex items-center justify-center rounded-lg border touch-manipulation transition-colors ${
+                                      execution.weight_feedback === 'decrease'
+                                        ? 'bg-red-100 border-red-300 text-red-600'
+                                        : 'border-slate-200 text-slate-300 hover:text-red-500 hover:border-red-200'
+                                    }`}
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleWeightFeedback(execution.id, 'keep')}
+                                    title="Keep the same weight next time"
+                                    className={`w-8 h-8 flex items-center justify-center rounded-lg border touch-manipulation transition-colors ${
+                                      execution.weight_feedback === 'keep'
+                                        ? 'bg-slate-200 border-slate-400 text-slate-700'
+                                        : 'border-slate-200 text-slate-300 hover:text-slate-600 hover:border-slate-300'
+                                    }`}
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 12h14" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleWeightFeedback(execution.id, 'increase')}
+                                    title="Increase weight next time"
+                                    className={`w-8 h-8 flex items-center justify-center rounded-lg border touch-manipulation transition-colors ${
+                                      execution.weight_feedback === 'increase'
+                                        ? 'bg-emerald-100 border-emerald-300 text-emerald-600'
+                                        : 'border-slate-200 text-slate-300 hover:text-emerald-500 hover:border-emerald-200'
+                                    }`}
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </>
                         )}
@@ -1109,6 +1282,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                       </div>
                     ))}
                   </div>
+                  )}
                 </div>
               ))
             )}
