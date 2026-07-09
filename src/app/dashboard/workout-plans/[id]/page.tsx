@@ -323,10 +323,13 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
     }
   };
 
-  const handleWeightFeedback = async (executionId: string, feedback: WeightFeedback) => {
+  const handleCycleWeightFeedback = async (executionId: string) => {
     const execution = exerciseExecutions.find(e => e.id === executionId);
-    // Tapping the already-selected option clears the evaluation
-    const newValue = execution?.weight_feedback === feedback ? null : feedback;
+    const current = execution?.weight_feedback ?? null;
+    // One badge, tap to cycle: neutral → increase → decrease → neutral
+    // (legacy 'keep' values re-enter the cycle at 'increase')
+    const newValue: WeightFeedback | null =
+      current === 'increase' ? 'decrease' : current === 'decrease' ? null : 'increase';
 
     try {
       const { error } = await supabase
@@ -537,18 +540,34 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
   const muscleGroupName = (muscleGroupId: string) =>
     muscleGroups.find(g => g.id === muscleGroupId)?.name || '?';
 
-  // Last 5 distinct training days, oldest first (like a football club's recent form)
+  const todayKey = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+
+  // Last 5 finished training days, oldest first (like a football club's recent form).
+  // Today is excluded — an in-progress workout gets its own separate dot instead.
   const recentSessions = useMemo(
-    () => groupedExercises.slice(0, 5).reverse(),
-    [groupedExercises]
+    () => groupedExercises.filter(g => g.date !== todayKey).slice(0, 5).reverse(),
+    [groupedExercises, todayKey]
   );
+
+  const todaySession = groupedExercises.find(g => g.date === todayKey) ?? null;
 
   const wasTrainedInSession = (muscleGroupId: string, session: (typeof groupedExercises)[number]) =>
     session.executions.some(e =>
-      e.completed &&
-      (e.exercise.primary_muscle_group_id === muscleGroupId ||
-        e.exercise.secondary_muscle_group_id === muscleGroupId)
+      e.completed && e.exercise.primary_muscle_group_id === muscleGroupId
     );
+
+  const todayStatus = (muscleGroupId: string): 'trained' | 'planned' | 'untouched' => {
+    const todays = todaySession?.executions.filter(
+      e => e.exercise.primary_muscle_group_id === muscleGroupId
+    ) ?? [];
+    if (todays.some(e => e.completed)) return 'trained';
+    if (todays.length > 0) return 'planned';
+    return 'untouched';
+  };
 
   // Only the most recent day is expanded by default; older days stay collapsed
   const isDayExpanded = (date: string, index: number) => expandedDays[date] ?? index === 0;
@@ -705,7 +724,7 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                       <div className="flex items-center gap-2">
                         <MuscleGroupIcon name={target.muscle_group.name} />
                         <span className="font-medium text-slate-900">{target.muscle_group.name}</span>
-                        {recentSessions.length > 0 && (
+                        {(recentSessions.length > 0 || todaySession) && (
                           <div className="flex items-center gap-1 ml-1">
                             {recentSessions.map((session) => {
                               const trained = wasTrainedInSession(target.muscle_group_id, session);
@@ -717,6 +736,21 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                                 />
                               );
                             })}
+                            {todaySession && (() => {
+                              const status = todayStatus(target.muscle_group_id);
+                              return (
+                                <span
+                                  title={`Today: ${status === 'trained' ? 'trained' : status === 'planned' ? 'exercise added, not completed yet' : 'not trained yet'}`}
+                                  className={`w-2.5 h-2.5 rounded-full ml-1 ${
+                                    status === 'trained'
+                                      ? 'bg-emerald-500'
+                                      : status === 'planned'
+                                        ? 'bg-slate-300'
+                                        : 'border border-slate-300'
+                                  }`}
+                                />
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
@@ -937,25 +971,21 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                     min={0}
                     max={200}
                   />
-                  {lastWeightFeedback && (
+                  {(lastWeightFeedback === 'increase' || lastWeightFeedback === 'decrease') && (
                     <div className={`flex items-center gap-2 text-sm font-medium rounded-lg px-4 py-3 ${
                       lastWeightFeedback === 'increase'
                         ? 'bg-emerald-50 text-emerald-700'
-                        : lastWeightFeedback === 'decrease'
-                          ? 'bg-red-50 text-red-700'
-                          : 'bg-slate-50 text-slate-600'
+                        : 'bg-red-50 text-red-700'
                     }`}>
                       <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         {lastWeightFeedback === 'increase' ? (
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                        ) : lastWeightFeedback === 'decrease' ? (
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                         ) : (
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
                         )}
                       </svg>
                       <span>
-                        Last time you noted: {lastWeightFeedback === 'increase' ? 'increase the weight' : lastWeightFeedback === 'decrease' ? 'decrease the weight' : 'keep the same weight'}
+                        Last time you noted: {lastWeightFeedback === 'increase' ? 'increase the weight' : 'decrease the weight'}
                       </span>
                     </div>
                   )}
@@ -1186,6 +1216,36 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                                   className="w-5 h-5 rounded border-2 border-slate-300 text-blue-600 focus:ring-0 cursor-pointer flex-shrink-0"
                                 />
                                 <h3 className={`font-semibold truncate ${execution.completed ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{execution.exercise.name}</h3>
+                                {execution.completed && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCycleWeightFeedback(execution.id)}
+                                    title={
+                                      execution.weight_feedback === 'increase'
+                                        ? 'Increase weight next time (tap to change)'
+                                        : execution.weight_feedback === 'decrease'
+                                          ? 'Decrease weight next time (tap to change)'
+                                          : 'How did the weight feel? Tap to evaluate'
+                                    }
+                                    className={`w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 touch-manipulation transition-colors ${
+                                      execution.weight_feedback === 'increase'
+                                        ? 'bg-emerald-100 text-emerald-600'
+                                        : execution.weight_feedback === 'decrease'
+                                          ? 'bg-red-100 text-red-600'
+                                          : 'text-slate-300 hover:text-slate-400'
+                                    }`}
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      {execution.weight_feedback === 'increase' ? (
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                      ) : execution.weight_feedback === 'decrease' ? (
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                                      ) : (
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 12h14" />
+                                      )}
+                                    </svg>
+                                  </button>
+                                )}
                               </div>
                               <button
                                 onClick={() => startEditing(execution)}
@@ -1226,53 +1286,6 @@ export default function WorkoutPlanShow({ params }: WorkoutPlanShowProps) {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                   </svg>
                                   <span className="leading-relaxed">{execution.notes}</span>
-                                </div>
-                              )}
-                              {execution.completed && (
-                                <div className="flex items-center gap-2 pt-2">
-                                  <span className="text-xs font-medium text-slate-400">Next time:</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleWeightFeedback(execution.id, 'decrease')}
-                                    title="Decrease weight next time"
-                                    className={`w-8 h-8 flex items-center justify-center rounded-lg border touch-manipulation transition-colors ${
-                                      execution.weight_feedback === 'decrease'
-                                        ? 'bg-red-100 border-red-300 text-red-600'
-                                        : 'border-slate-200 text-slate-300 hover:text-red-500 hover:border-red-200'
-                                    }`}
-                                  >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleWeightFeedback(execution.id, 'keep')}
-                                    title="Keep the same weight next time"
-                                    className={`w-8 h-8 flex items-center justify-center rounded-lg border touch-manipulation transition-colors ${
-                                      execution.weight_feedback === 'keep'
-                                        ? 'bg-slate-200 border-slate-400 text-slate-700'
-                                        : 'border-slate-200 text-slate-300 hover:text-slate-600 hover:border-slate-300'
-                                    }`}
-                                  >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 12h14" />
-                                    </svg>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleWeightFeedback(execution.id, 'increase')}
-                                    title="Increase weight next time"
-                                    className={`w-8 h-8 flex items-center justify-center rounded-lg border touch-manipulation transition-colors ${
-                                      execution.weight_feedback === 'increase'
-                                        ? 'bg-emerald-100 border-emerald-300 text-emerald-600'
-                                        : 'border-slate-200 text-slate-300 hover:text-emerald-500 hover:border-emerald-200'
-                                    }`}
-                                  >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
-                                    </svg>
-                                  </button>
                                 </div>
                               )}
                             </div>
